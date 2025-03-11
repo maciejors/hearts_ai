@@ -65,7 +65,7 @@ class HeartsGame:
             self.collected_tricks[i] = []
 
     def pass_cards(self):
-        if self.pass_direction_int == PassDirection.NO_PASSING.value:
+        if self.pass_direction_int == PassDirection.NO_PASSING.value or not self.rule_passsing_cards:
             return
 
         pass_offsets = [1, 3, 2]

@@ -6,7 +6,7 @@ from .base_player import BasePlayer
 
 class RandomPlayer(BasePlayer):
 
-    def __init__(self, random_state: int | None):
+    def __init__(self, random_state: int | None = None):
         self._rng = np.random.default_rng(random_state)
 
     def play_card(self,

@@ -4,9 +4,9 @@ from players import RandomPlayer, InputPlayer
 if __name__ == '__main__':
     players = [
         InputPlayer(),
-        RandomPlayer(random_state=11),
-        RandomPlayer(random_state=22),
-        RandomPlayer(random_state=33),
+        RandomPlayer(),
+        RandomPlayer(),
+        RandomPlayer(),
     ]
-    game = HeartsGame(players, random_state=44)
+    game = HeartsGame(players)
     game.play_round()

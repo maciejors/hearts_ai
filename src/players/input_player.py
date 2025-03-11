@@ -19,6 +19,22 @@ class InputPlayer(BasePlayer):
         }
         return sorted(hand, key=lambda card: (suit_order[card.suit], card.rank))
 
+    @staticmethod
+    def pretty_print_hand(hand: list[Card], valid_cards_idx: list[int] | None = None) -> None:
+        if valid_cards_idx is None:
+            valid_cards_idx = list(range(len(hand)))
+
+        numbers_row = ' | '.join(
+            f'{valid_cards_idx.index(i) + 1:^3}'
+            if i in valid_cards_idx else ' ' * 3
+            for i in range(len(hand))
+        )
+
+        cards_row = ' | '.join(f'{str(card):^3}' for card in hand)
+
+        print(numbers_row)
+        print(cards_row)
+
     def play_card(self,
                   hand: list[Card],
                   trick: list[Card | None],
@@ -31,14 +47,11 @@ class InputPlayer(BasePlayer):
         else:
             print(f'Current trick: {', '.join([str(card) for card in trick])}')
 
+        print('Your hand:')
         hand = self._sorted_hand(hand)
-        print(f'Your hand: {', '.join([str(card) for card in hand])}')
-
         valid_cards = self._get_valid_plays(hand, trick, are_hearts_broken, is_first_trick)
-
-        print('Valid cards to play:')
-        for i, card in enumerate(valid_cards):
-            print(f'{i + 1}: {card}')
+        valid_cards_idx = [hand.index(card) for card in valid_cards]
+        self.pretty_print_hand(hand, valid_cards_idx)
 
         while True:
             try:
@@ -53,9 +66,7 @@ class InputPlayer(BasePlayer):
     def select_cards_to_pass(self, hand: list[Card]) -> list[Card]:
         hand = self._sorted_hand(hand)
         print('Passing cards. Your hand:')
-
-        for i, card in enumerate(hand):
-            print(f'{i + 1}: {card}')
+        self.pretty_print_hand(hand)
 
         while True:
             try:
