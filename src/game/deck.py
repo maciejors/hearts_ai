@@ -1,6 +1,6 @@
-from enum import Enum
-
 import numpy as np
+
+from constants import Suit
 
 
 class Card:
@@ -9,12 +9,6 @@ class Card:
         suit: Suit of the card
         rank_value: Numerical representation of card's rank (2-14, where Ace=14)
     """
-
-    class Suit(Enum):
-        CLUB = '\u2663'
-        DIAMOND = '\u2666'
-        SPADE = '\u2660'
-        HEART = '\u2665'
 
     rank_mapper = {
         **{i: str(i) for i in range(2, 11)},
@@ -34,6 +28,11 @@ class Card:
     def __repr__(self) -> str:
         return str(self)
 
+    def __eq__(self, other):
+        if other is not Card:
+            return False
+        return (self.suit == other.suit) and (self.rank == other.rank)
+
 
 class Deck:
     def __init__(self, random_state: int | None = None):
@@ -42,7 +41,7 @@ class Deck:
         # standard deck of 52 cards
         self._cards = np.array([
             Card(suit, rank)
-            for suit in Card.Suit
+            for suit in Suit
             for rank in Card.rank_mapper.keys()
         ])
         self._cards_left = 0

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 from game.deck import Card
+from utils import is_heart, is_q_spades, is_starting_card
 
 
 class BasePlayer(ABC):
@@ -18,6 +19,14 @@ class BasePlayer(ABC):
     def select_cards_to_pass(self, hand: list[Card]) -> list[Card]:
         raise NotImplementedError()
 
+    def post_trick_callback(self, trick: list[Card | None], is_trick_taken: bool) -> None:
+        """A method which is called after every trick to inform a player about its outcome"""
+        pass
+
+    def post_round_callback(self, score: int) -> None:
+        """A method which is called after every round to inform a player about their score"""
+        pass
+
     @staticmethod
     def _get_valid_plays(hand: list[Card],
                          trick: list[Card | None],
@@ -26,11 +35,11 @@ class BasePlayer(ABC):
         if len(trick) == 0 and is_first_trick:
             # return a list with just the two of clubs
             return [card for card in hand
-                    if card.suit == Card.Suit.CLUB and card.rank == 2]
+                    if is_starting_card(card)]
 
         if len(trick) == 0:
             if not are_hearts_broken:
-                non_hearts = [card for card in hand if card.suit != Card.Suit.HEART]
+                non_hearts = [card for card in hand if not is_heart(card)]
                 if len(non_hearts) > 0:
                     return non_hearts
             return hand.copy()
@@ -44,7 +53,7 @@ class BasePlayer(ABC):
         if is_first_trick:
             non_points = [
                 card for card in hand
-                if card.suit != Card.Suit.HEART and not (card.suit == Card.Suit.SPADE and card.rank == 12)
+                if not is_heart(card) and not is_q_spades(card)
             ]
             if len(non_points) > 0:
                 return non_points

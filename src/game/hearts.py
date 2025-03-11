@@ -1,7 +1,9 @@
-from enum import Enum
-
+from constants import (
+    MAX_POINTS, PLAYER_COUNT, PassDirection,
+)
 from players import BasePlayer
-from .deck import Deck, Card
+from utils import is_heart, points_for_card, is_starting_card
+from .deck import Deck
 
 
 class HeartsGame:
@@ -10,45 +12,30 @@ class HeartsGame:
         players: List of exactly 4 player 'brains'
         rule_moon_shot: Determines whether shooting the moon is enabled
         rule_passing_cards: Determines whether passing cards is enabled
-        rule_jack_of_diamonds: Determinines whether the jack of diamonds rule is enabled
         random_state: Random seed for reproducibility
     """
-
-    PLAYER_COUNT = 4
-    HEART_POINTS = 1
-    Q_SPADES_POINTS = 13
-    MAX_POINTS = 26
-
-    class PassDirection(Enum):
-        LEFT = 0
-        RIGHT = 1
-        ACROSS = 2
-        NO_PASSING = 3
 
     def __init__(self,
                  players: list[BasePlayer],
                  rule_moon_shot=True,
                  rule_passing_cards=True,
-                 rule_jack_of_diamonds=False,
                  random_state: int | None = None):
 
-        if len(players) != HeartsGame.PLAYER_COUNT:
-            raise ValueError(f'There should be exactly {HeartsGame.PLAYER_COUNT} players')
+        if len(players) != PLAYER_COUNT:
+            raise ValueError(f'There should be exactly {PLAYER_COUNT} players')
 
         self.players = players
         self.deck = Deck(random_state=random_state)
 
         self.hearts_broken = False
-        self.pass_direction_int = HeartsGame.PassDirection.LEFT.value
+        self.pass_direction_int = PassDirection.LEFT.value
 
         self.rule_moon_shot = rule_moon_shot
         self.rule_passsing_cards = rule_passing_cards
-        self.rule_jack_of_diamonds = rule_jack_of_diamonds
 
         # order of items in the list corresponds to the order of players
         self.hands = [[] for _ in players]
         self.collected_tricks = [[] for _ in players]
-        self.current_trick = []
 
         # total points excluding points from the current round
         self.scoreboard = [0 for _ in players]
@@ -59,18 +46,15 @@ class HeartsGame:
 
         for i, _ in enumerate(self.players):
             for card in self.collected_tricks[i]:
-                if card.suit == Card.Suit.HEART:
-                    round_scores[i] += 1
-                elif card.suit == Card.Suit.SPADE and card.rank == 12:
-                    round_scores[i] += 13
+                round_scores[i] += points_for_card(card)
 
-        if self.rule_moon_shot and HeartsGame.MAX_POINTS in round_scores:
-            shooter_idx = round_scores.index(HeartsGame.MAX_POINTS)
+        if self.rule_moon_shot and MAX_POINTS in round_scores:
+            shooter_idx = round_scores.index(MAX_POINTS)
             for i, _ in enumerate(self.players):
                 if i != shooter_idx:
-                    self.scoreboard[i] += HeartsGame.MAX_POINTS
+                    self.scoreboard[i] += MAX_POINTS
                 else:
-                    self.scoreboard[i] -= HeartsGame.HEART_POINTS
+                    self.scoreboard[i] -= MAX_POINTS
 
         return round_scores
 
@@ -81,7 +65,7 @@ class HeartsGame:
             self.collected_tricks[i] = []
 
     def pass_cards(self):
-        if self.pass_direction_int == HeartsGame.PassDirection.NO_PASSING.value:
+        if self.pass_direction_int == PassDirection.NO_PASSING.value:
             return
 
         pass_offsets = [1, 3, 2]
@@ -99,16 +83,16 @@ class HeartsGame:
 
         # 2. pass the cards
         for i, _ in enumerate(self.players):
-            target_idx = (i + pass_offset) % 4
+            target_idx = (i + pass_offset) % PLAYER_COUNT
             self.hands[target_idx].extend(cards_to_pass[i])
 
     def find_starting_player(self) -> int:
         for i, _ in enumerate(self.players):
-            if any(card.suit == Card.Suit.CLUB and card.rank == 2 for card in self.hands[i]):
+            if any(is_starting_card(card) for card in self.hands[i]):
                 return i
 
     def play_trick(self, starting_player: int, is_first_trick: bool) -> int:
-        self.current_trick = []
+        current_trick = []
         current_player = starting_player
         player_count = len(self.players)
 
@@ -117,32 +101,36 @@ class HeartsGame:
 
             card = player.play_card(
                 self.hands[current_player],
-                self.current_trick.copy(),
+                current_trick.copy(),
                 self.hearts_broken,
                 is_first_trick
             )
             self.hands[current_player].remove(card)
-            self.current_trick.append(card)
+            current_trick.append(card)
 
-            if card.suit == Card.Suit.HEART and not self.hearts_broken:
+            if is_heart(card) and not self.hearts_broken:
                 self.hearts_broken = True
 
-            current_player = (current_player + 1) % 4
+            current_player = (current_player + 1) % PLAYER_COUNT
 
         # check who is taking the trick
-        lead_suit = self.current_trick[0].suit
-        winning_card = self.current_trick[0]
+        lead_suit = current_trick[0].suit
+        winning_card = current_trick[0]
         winner_idx = starting_player
 
         for i in range(1, player_count):
-            player_idx = (starting_player + i) % 4
-            card = self.current_trick[i]
+            player_idx = (starting_player + i) % PLAYER_COUNT
+            card = current_trick[i]
 
             if card.suit == lead_suit and card.rank > winning_card.rank:
                 winning_card = card
                 winner_idx = player_idx
 
-        self.collected_tricks[winner_idx].extend(self.current_trick)
+        self.collected_tricks[winner_idx].extend(current_trick)
+
+        for i, player in enumerate(self.players):
+            player.post_trick_callback(current_trick, i == winner_idx)
+
         return winner_idx
 
     def play_round(self):
@@ -158,7 +146,9 @@ class HeartsGame:
 
         # update the scoreboard
         round_scores = self.current_round_points
-        for i, _ in enumerate(self.players):
-            self.scoreboard[i] += round_scores[i]
+        for i, player in enumerate(self.players):
+            score_for_player = round_scores[i]
+            self.scoreboard[i] += score_for_player
+            player.post_round_callback(score_for_player)
 
         self.pass_direction_int = (self.pass_direction_int + 1) % 4

@@ -1,6 +1,8 @@
 import numpy as np
 
+from constants import Suit
 from game.deck import Card
+from utils import points_for_card
 from .base_player import BasePlayer
 
 
@@ -10,10 +12,10 @@ class InputPlayer(BasePlayer):
     @staticmethod
     def _sorted_hand(hand: list[Card]) -> list[Card]:
         suit_order = {
-            Card.Suit.CLUB: 0,
-            Card.Suit.DIAMOND: 1,
-            Card.Suit.SPADE: 2,
-            Card.Suit.HEART: 3,
+            Suit.CLUB: 0,
+            Suit.DIAMOND: 1,
+            Suit.SPADE: 2,
+            Suit.HEART: 3,
         }
         return sorted(hand, key=lambda card: (suit_order[card.suit], card.rank))
 
@@ -22,6 +24,8 @@ class InputPlayer(BasePlayer):
                   trick: list[Card | None],
                   are_hearts_broken: bool,
                   is_first_trick: bool) -> Card:
+        print()
+
         if len(trick) == 0:
             print('You are leading the trick')
         else:
@@ -38,7 +42,7 @@ class InputPlayer(BasePlayer):
 
         while True:
             try:
-                choice = int(input(f'Choose a card (1-{len(hand)}): ')) - 1
+                choice = int(input(f'Choose a card (1-{len(valid_cards)}): ')) - 1
                 if 0 <= choice < len(valid_cards):
                     return valid_cards[choice]
                 else:
@@ -71,3 +75,13 @@ class InputPlayer(BasePlayer):
                 print('Invalid input. Please try again.')
             except IndexError:
                 print('Choice(s) out of bounds. Please try again.')
+
+    def post_trick_callback(self, trick: list[Card | None], is_trick_taken: bool) -> None:
+        print(f'Trick outcome: {', '.join([str(card) for card in trick])} '
+              f'({sum([points_for_card(c) for c in trick])} pts)')
+        if is_trick_taken:
+            print('You take this trick.')
+        input('Press [Enter] to proceed ')
+
+    def post_round_callback(self, score: int) -> None:
+        print(f'Round finished. Your score: {score}')
