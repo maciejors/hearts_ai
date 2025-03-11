@@ -31,6 +31,9 @@ class Card:
     def __str__(self) -> str:
         return f'{Card.rank_mapper[self.rank]}{self.suit.value}'
 
+    def __repr__(self) -> str:
+        return str(self)
+
 
 class Deck:
     def __init__(self, random_state: int | None = None):
