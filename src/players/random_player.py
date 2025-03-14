@@ -1,7 +1,7 @@
 import numpy as np
 
 from game.deck import Card
-from .base_player import BasePlayer
+from players.base.base_player import BasePlayer
 
 
 class RandomPlayer(BasePlayer):

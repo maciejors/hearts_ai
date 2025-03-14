@@ -2,8 +2,8 @@ import numpy as np
 
 from constants import Suit
 from game.deck import Card
+from players.base.base_player import BasePlayer
 from utils import points_for_card
-from .base_player import BasePlayer
 
 
 class InputPlayer(BasePlayer):
