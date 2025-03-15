@@ -1,5 +1,5 @@
-from constants import Suit, HEART_POINTS, Q_SPADES_POINTS
-from game.deck import Card
+from hearts_ai.constants import Suit, HEART_POINTS, Q_SPADES_POINTS
+from hearts_ai.game.deck import Card
 
 
 def is_q_spades(card: Card) -> bool:

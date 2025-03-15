@@ -1,8 +1,8 @@
-from constants import (
+from hearts_ai.constants import (
     MAX_POINTS, PLAYER_COUNT, PassDirection,
 )
-from players import BasePlayer
-from utils import is_heart, points_for_card, is_starting_card
+from hearts_ai.players.base import BasePlayer
+from hearts_ai.utils import is_heart, points_for_card, is_starting_card
 from .deck import Deck
 
 

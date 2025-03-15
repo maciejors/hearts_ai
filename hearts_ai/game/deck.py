@@ -1,6 +1,6 @@
 import numpy as np
 
-from constants import Suit
+from hearts_ai.constants import Suit
 
 
 class Card:

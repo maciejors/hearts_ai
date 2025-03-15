@@ -1,7 +1,7 @@
 import numpy as np
 
-from game.deck import Card
-from players.base.base_player import BasePlayer
+from hearts_ai.game.deck import Card
+from hearts_ai.players.base.base_player import BasePlayer
 
 
 class RandomPlayer(BasePlayer):

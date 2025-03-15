@@ -1,9 +1,9 @@
 import numpy as np
 
-from constants import Suit
-from game.deck import Card
-from players.base.base_player import BasePlayer
-from utils import points_for_card
+from hearts_ai.constants import Suit
+from hearts_ai.game.deck import Card
+from hearts_ai.players.base.base_player import BasePlayer
+from hearts_ai.utils import points_for_card
 
 
 class InputPlayer(BasePlayer):

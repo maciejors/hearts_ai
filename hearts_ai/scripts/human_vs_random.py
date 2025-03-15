@@ -1,5 +1,5 @@
-from game import HeartsGame
-from players import RandomPlayer, InputPlayer
+from hearts_ai.game import HeartsGame
+from hearts_ai.players import RandomPlayer, InputPlayer
 
 if __name__ == '__main__':
     players = [

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from game.deck import Card
-from utils import is_heart, is_q_spades, is_starting_card
+from hearts_ai.game.deck import Card
+from hearts_ai.utils import is_heart, is_q_spades, is_starting_card
 
 
 class BasePlayer(ABC):
