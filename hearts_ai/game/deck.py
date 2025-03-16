@@ -1,14 +1,19 @@
+from dataclasses import dataclass
+
 import numpy as np
 
 from hearts_ai.constants import Suit
 
 
+@dataclass
 class Card:
     """
     Args:
         suit: Suit of the card
         rank_value: Numerical representation of card's rank (2-14, where Ace=14)
     """
+    suit: Suit
+    rank_value: int
 
     rank_mapper = {
         **{i: str(i) for i in range(2, 11)},
@@ -18,20 +23,15 @@ class Card:
         14: 'A',
     }
 
-    def __init__(self, suit: Suit, rank_value: int):
-        self.suit = suit
-        self.rank = rank_value
+    @property
+    def rank(self) -> str:
+        return Card.rank_mapper[self.rank_value]
 
     def __str__(self) -> str:
-        return f'{Card.rank_mapper[self.rank]}{self.suit.value}'
+        return f'{Card.rank_mapper[self.rank_value]}{self.suit.value}'
 
     def __repr__(self) -> str:
         return str(self)
-
-    def __eq__(self, other):
-        if other is not Card:
-            return False
-        return (self.suit == other.suit) and (self.rank == other.rank)
 
 
 class Deck:

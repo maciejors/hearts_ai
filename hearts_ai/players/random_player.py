@@ -1,5 +1,6 @@
 import numpy as np
 
+from constants import PassDirection
 from hearts_ai.game.deck import Card
 from hearts_ai.players.base.base_player import BasePlayer
 
@@ -18,6 +19,6 @@ class RandomPlayer(BasePlayer):
         chosen_card_idx = self._rng.integers(len(valid_plays))
         return valid_plays[chosen_card_idx]
 
-    def select_cards_to_pass(self, hand: list[Card]) -> list[Card]:
+    def select_cards_to_pass(self, hand: list[Card], direction: PassDirection) -> list[Card]:
         chosen_cards_idx = self._rng.choice(range(len(hand)), size=3, replace=False)
         return [hand[i] for i in chosen_cards_idx]

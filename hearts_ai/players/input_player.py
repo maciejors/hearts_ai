@@ -17,7 +17,7 @@ class InputPlayer(BasePlayer):
             Suit.SPADE: 2,
             Suit.HEART: 3,
         }
-        return sorted(hand, key=lambda card: (suit_order[card.suit], card.rank))
+        return sorted(hand, key=lambda card: (suit_order[card.suit], card.rank_value))
 
     @staticmethod
     def pretty_print_hand(hand: list[Card], valid_cards_idx: list[int] | None = None) -> None:
@@ -63,9 +63,16 @@ class InputPlayer(BasePlayer):
             except ValueError:
                 print('Please enter a number.')
 
-    def select_cards_to_pass(self, hand: list[Card]) -> list[Card]:
+    def select_cards_to_pass(self, hand: list[Card], direction: int) -> list[Card]:
         hand = self._sorted_hand(hand)
-        print('Passing cards. Your hand:')
+
+        if direction == 0:
+            print('Passing cards to the left.')
+        if direction == 1:
+            print('Passing cards to the right.')
+        if direction == 2:
+            print('Passing cards across.')
+        print('Your hand:')
         self.pretty_print_hand(hand)
 
         while True:

@@ -3,7 +3,7 @@ from hearts_ai.game.deck import Card
 
 
 def is_q_spades(card: Card) -> bool:
-    return card.suit == Suit.SPADE and card.rank == 12
+    return card.suit == Suit.SPADE and card.rank == 'Q'
 
 
 def is_heart(card: Card) -> bool:
@@ -11,7 +11,7 @@ def is_heart(card: Card) -> bool:
 
 
 def is_starting_card(card: Card) -> bool:
-    return card.suit == Suit.CLUB and card.rank == 2
+    return card.suit == Suit.CLUB and card.rank == '2'
 
 
 def points_for_card(card: Card) -> int:
