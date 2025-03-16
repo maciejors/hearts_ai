@@ -1,4 +1,3 @@
-import warnings
 from dataclasses import dataclass
 
 from hearts_ai.constants import (
@@ -6,7 +5,7 @@ from hearts_ai.constants import (
 )
 from hearts_ai.players.base import BasePlayer
 from hearts_ai.utils import is_heart, points_for_card, is_starting_card
-from .deck import Deck
+from .deck import Deck, Card
 
 
 @dataclass
@@ -129,9 +128,14 @@ class HeartsGame:
         # just in case 2 of clubs was passed
         self.set_starting_player()
 
-    def play_trick(self):
+    def play_trick(self) -> tuple[list[Card], int]:
+        """
+        Returns:
+            A tuple of two elements, the first one is the trick content, and
+            the second is the index of a player who took the trick.
+        """
         if self.trick_no == 13:
-            warnings.warn('The round has ended. The trick is not going to be played')
+            raise RuntimeError('The round has ended. The trick cannot be played')
 
         self.trick_no += 1
         current_trick = []
@@ -172,6 +176,8 @@ class HeartsGame:
 
         for i, player in enumerate(self.players):
             player.post_trick_callback(current_trick, i == winner_idx)
+
+        return current_trick, winner_idx
 
     def play_round(self):
         self.pre_round()

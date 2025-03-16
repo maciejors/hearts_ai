@@ -12,7 +12,7 @@ class RandomPlayer(BasePlayer):
 
     def play_card(self,
                   hand: list[Card],
-                  trick: list[Card | None],
+                  trick: list[Card],
                   are_hearts_broken: bool,
                   is_first_trick: bool) -> Card:
         valid_plays = self._get_valid_plays(hand, trick, are_hearts_broken, is_first_trick)

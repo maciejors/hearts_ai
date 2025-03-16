@@ -10,7 +10,7 @@ class BasePlayer(ABC):
     @abstractmethod
     def play_card(self,
                   hand: list[Card],
-                  trick: list[Card | None],
+                  trick: list[Card],
                   are_hearts_broken: bool,
                   is_first_trick: bool) -> Card:
         raise NotImplementedError()
@@ -19,7 +19,7 @@ class BasePlayer(ABC):
     def select_cards_to_pass(self, hand: list[Card], direction: int) -> list[Card]:
         raise NotImplementedError()
 
-    def post_trick_callback(self, trick: list[Card | None], is_trick_taken: bool) -> None:
+    def post_trick_callback(self, trick: list[Card], is_trick_taken: bool) -> None:
         """A method which is called after every trick to inform a player about its outcome"""
         pass
 
@@ -29,7 +29,7 @@ class BasePlayer(ABC):
 
     @staticmethod
     def _get_valid_plays(hand: list[Card],
-                         trick: list[Card | None],
+                         trick: list[Card],
                          are_hearts_broken: bool,
                          is_first_trick: bool) -> list[Card]:
         if len(trick) == 0 and is_first_trick:

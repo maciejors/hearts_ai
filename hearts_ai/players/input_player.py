@@ -37,7 +37,7 @@ class InputPlayer(BasePlayer):
 
     def play_card(self,
                   hand: list[Card],
-                  trick: list[Card | None],
+                  trick: list[Card],
                   are_hearts_broken: bool,
                   is_first_trick: bool) -> Card:
         print()
@@ -94,7 +94,7 @@ class InputPlayer(BasePlayer):
             except IndexError:
                 print('Choice(s) out of bounds. Please try again.')
 
-    def post_trick_callback(self, trick: list[Card | None], is_trick_taken: bool) -> None:
+    def post_trick_callback(self, trick: list[Card], is_trick_taken: bool) -> None:
         print(f'Trick outcome: {', '.join([str(card) for card in trick])} '
               f'({sum([points_for_card(c) for c in trick])} pts)')
         if is_trick_taken:
