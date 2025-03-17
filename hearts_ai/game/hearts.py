@@ -50,7 +50,7 @@ class HeartsGame:
 
         # total points excluding points from the current round
         self.scoreboard = [0 for _ in self.players]
-        self.pass_direction_int = PassDirection.LEFT.value
+        self.pass_direction = PassDirection.ACROSS
 
     @property
     def current_round_points(self) -> list[int]:
@@ -82,7 +82,9 @@ class HeartsGame:
         prepares the state for the next round.
         """
         if self.round_no > 0:
-            self.pass_direction_int = (self.pass_direction_int + 1) % 4
+            pass_direction_order = list(PassDirection)
+            self.pass_direction = pass_direction_order[
+                (pass_direction_order.index(self.pass_direction) + 1) % 4]
 
         # prepare the next round
         self.round_no += 1
@@ -104,17 +106,17 @@ class HeartsGame:
             player.post_round_callback(score_for_player)
 
     def pass_cards(self):
-        if (self.pass_direction_int == PassDirection.NO_PASSING.value
+        if (self.pass_direction == PassDirection.NO_PASSING
                 or not self.rules.passing_cards):
             return
 
         pass_offsets = [1, 3, 2]
-        pass_offset = pass_offsets[self.pass_direction_int]
+        pass_offset = pass_offsets[self.pass_direction.value]
 
         # 1. select the cards to pass
         cards_to_pass = []
         for i, player in enumerate(self.players):
-            selected_cards = player.select_cards_to_pass(self.hands[i], self.pass_direction_int)
+            selected_cards = player.select_cards_to_pass(self.hands[i], self.pass_direction)
 
             for card in selected_cards:
                 self.hands[i].remove(card)
@@ -134,7 +136,7 @@ class HeartsGame:
             A tuple of two elements, the first one is the trick content, and
             the second is the index of a player who took the trick.
         """
-        if self.trick_no == 13:
+        if self.trick_no == CARDS_PER_PLAYER:
             raise RuntimeError('The round has ended. The trick cannot be played')
 
         self.trick_no += 1

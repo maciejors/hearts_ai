@@ -1,3 +1,5 @@
+import numpy as np
+
 from hearts_ai.game import HeartsGame
 from hearts_ai.players import RandomPlayer, InputPlayer
 
@@ -9,4 +11,5 @@ if __name__ == '__main__':
         RandomPlayer(),
     ]
     game = HeartsGame(players)
-    game.play_round()
+    while np.max(game.scoreboard) < 100:
+        game.play_round()

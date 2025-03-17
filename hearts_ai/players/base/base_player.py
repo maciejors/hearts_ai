@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from constants import PassDirection
 from hearts_ai.game.deck import Card
 from hearts_ai.utils import is_heart, is_q_spades, is_starting_card
 
@@ -16,7 +17,7 @@ class BasePlayer(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def select_cards_to_pass(self, hand: list[Card], direction: int) -> list[Card]:
+    def select_cards_to_pass(self, hand: list[Card], direction: PassDirection) -> list[Card]:
         raise NotImplementedError()
 
     def post_trick_callback(self, trick: list[Card], is_trick_taken: bool) -> None:
