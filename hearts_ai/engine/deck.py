@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from hearts_ai.constants import Suit
+from .constants import Suit
 
 
 @dataclass

@@ -1,8 +1,8 @@
 import numpy as np
 
-from constants import PassDirection
-from hearts_ai.game.deck import Card
-from hearts_ai.players.base.base_player import BasePlayer
+from hearts_ai.engine.constants import PassDirection
+from hearts_ai.engine.deck import Card
+from .base.base_player import BasePlayer
 
 
 class RandomPlayer(BasePlayer):

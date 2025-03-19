@@ -1,9 +1,9 @@
 import numpy as np
 
-from hearts_ai.constants import Suit, PassDirection
-from hearts_ai.game.deck import Card
-from hearts_ai.players.base.base_player import BasePlayer
-from hearts_ai.utils import points_for_card
+from hearts_ai.engine.constants import Suit, PassDirection
+from hearts_ai.engine.deck import Card
+from hearts_ai.engine.utils import points_for_card
+from .base.base_player import BasePlayer
 
 
 class InputPlayer(BasePlayer):
@@ -59,6 +59,7 @@ class InputPlayer(BasePlayer):
                 print('Please enter a number.')
 
     def select_cards_to_pass(self, hand: list[Card], direction: PassDirection) -> list[Card]:
+        print()
         hand = self._sorted_hand(hand)
 
         if direction == PassDirection.LEFT:
@@ -97,4 +98,6 @@ class InputPlayer(BasePlayer):
         input('Press [Enter] to proceed ')
 
     def post_round_callback(self, score: int) -> None:
+        print('=====')
         print(f'Round finished. Your score: {score}')
+        print('=====')

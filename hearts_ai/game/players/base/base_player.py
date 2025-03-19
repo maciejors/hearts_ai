@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
-from constants import PassDirection
-from hearts_ai.game.deck import Card
-from hearts_ai.utils import is_heart, is_q_spades, is_starting_card
+from hearts_ai.engine.constants import PassDirection
+from hearts_ai.engine.deck import Card
+from hearts_ai.engine.utils import is_heart, is_q_spades, is_starting_card
 
 
 class BasePlayer(ABC):
@@ -37,6 +37,7 @@ class BasePlayer(ABC):
             # return a list with just the two of clubs
             return [card for card in hand
                     if is_starting_card(card)]
+            return cards
 
         if len(trick) == 0:
             if not are_hearts_broken:
