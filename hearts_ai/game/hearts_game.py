@@ -45,8 +45,8 @@ class HeartsGame:
             current_player_idx = self.core.current_player_idx
             player = self.players[current_player_idx]
             card = player.play_card(
-                hand=self.core.hands[current_player_idx].copy(),
-                trick=self.core.current_trick.copy(),
+                hand=self.core.hands[current_player_idx],
+                trick=self.core.current_trick,
                 are_hearts_broken=self.core.are_hearts_broken,
                 is_first_trick=self.core.trick_no == 1,
             )
@@ -62,5 +62,5 @@ class HeartsGame:
         for trick_num in range(CARDS_PER_PLAYER_COUNT):
             self.play_trick()
 
-        for player, score in zip(self.players, self.core.current_round_points):
+        for player, score in zip(self.players, self.core.current_round_scores):
             player.post_round_callback(score)

@@ -6,3 +6,4 @@ torch
 tqdm
 academia-rl
 gymnasium
+stable-baselines3

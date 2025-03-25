@@ -29,13 +29,15 @@ class TestHeartsGame(unittest.TestCase):
         # act
         game.play_round()
         # assert
-        self.assertEqual(26, np.sum(game.core.current_round_points),
+        self.assertEqual(26, np.sum(game.core.current_round_scores),
                          'Sum of all points should be equal to 26')
-        self.assertEqual([0] * 4, [len(hand) for hand in game.core.hands],
+        self.assertEqual([0] * 4, [len(hand) for hand in game.core._hands],
                          'All players should have empty hands')
+        self.assertEqual([13] * 4, [len(cards) for cards in game.core._played_cards],
+                         'All players should have played 13 cards')
         self.assertEqual(
             52,
-            np.sum([len(cards_for_player) for cards_for_player in game.core.taken_cards]),
+            np.sum([len(cards_for_player) for cards_for_player in game.core._taken_cards]),
             'There should be 52 cards across all tricks taken',
         )
 
