@@ -2,7 +2,7 @@ import numpy as np
 
 from hearts_ai.engine.constants import Suit, PassDirection
 from hearts_ai.engine.deck import Card
-from hearts_ai.engine.utils import points_for_card
+from hearts_ai.engine.utils import points_for_card, get_valid_plays
 from .base.base_player import BasePlayer
 
 
@@ -44,7 +44,7 @@ class InputPlayer(BasePlayer):
 
         print('Your hand:')
         hand = self._sorted_hand(hand)
-        valid_cards = self._get_valid_plays(hand, trick, are_hearts_broken, is_first_trick)
+        valid_cards = get_valid_plays(hand, trick, are_hearts_broken, is_first_trick)
         valid_cards_idx = [hand.index(card) for card in valid_cards]
         self.pretty_print_hand(hand, valid_cards_idx)
 

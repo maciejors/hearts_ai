@@ -2,6 +2,7 @@ import numpy as np
 
 from hearts_ai.engine.constants import PassDirection
 from hearts_ai.engine.deck import Card
+from hearts_ai.engine.utils import get_valid_plays
 from .base.base_player import BasePlayer
 
 
@@ -15,7 +16,7 @@ class RandomPlayer(BasePlayer):
                   trick: list[Card],
                   are_hearts_broken: bool,
                   is_first_trick: bool) -> Card:
-        valid_plays = self._get_valid_plays(hand, trick, are_hearts_broken, is_first_trick)
+        valid_plays = get_valid_plays(hand, trick, are_hearts_broken, is_first_trick)
         chosen_card_idx = self._rng.integers(len(valid_plays))
         return valid_plays[chosen_card_idx]
 
