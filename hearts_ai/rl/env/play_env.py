@@ -5,9 +5,62 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-from hearts_ai.engine import HeartsCore, HeartsRules, Suit
-from hearts_ai.engine.utils import points_for_card
+from hearts_ai.engine import HeartsCore, HeartsRules, Suit, Card
+from hearts_ai.engine.utils import points_for_card, get_valid_plays
 from .utils import card_to_idx, action_to_card
+
+
+def create_play_env_obs(
+        trick_no: int,
+        player_idx: int,
+        trick_starting_player_idx: int,
+        current_trick: list[Card],
+        hands: list[list[Card]],
+        played_cards: list[list[Card]],
+        current_round_points_collected: list[int],
+) -> ObsType:
+    """
+    Returns the current state from the perspective of the current player.
+
+    For details on the observation space refer to :class:`HeartsPlayEnvironment`
+    """
+    state = np.zeros(217, dtype=np.int8)
+
+    state[0] = trick_no
+    current_trick = current_trick
+
+    for game_player_idx, (hand, played_cards) in enumerate(zip(hands, played_cards)):
+        # player index within the state. This is to account for the fact that
+        # each state looks differently from each player's perspective
+        state_player_idx = (game_player_idx - player_idx) % 4
+        # hands
+        cards_in_hand_idx = np.array([
+            card_to_idx(card) for card in hand
+        ], dtype=np.int16)
+        state[cards_in_hand_idx + 1 + 52 * state_player_idx] = 1
+
+        # played
+        cards_played_idx = np.array([
+            card_to_idx(card) for card in played_cards
+        ], dtype=np.int16)
+        state[cards_played_idx + 1 + 52 * state_player_idx] = -1
+
+        # current trick
+        player_idx_in_trick = (game_player_idx - trick_starting_player_idx) % 4
+        if player_idx_in_trick < len(current_trick):
+            player_card_in_trick_idx = card_to_idx(
+                current_trick[player_idx_in_trick]
+            )
+            state[player_card_in_trick_idx + 1 + 52 * state_player_idx] = 2
+
+    # leading suit
+    if len(current_trick) > 0:
+        leading_suit_state_idx = list(Suit).index(current_trick[0].suit) + 209
+        state[leading_suit_state_idx] = 1
+
+    # round points
+    state[213:217] = np.array(current_round_points_collected).astype(np.int8)
+    return state
 
 
 class HeartsPlayEnvironment(gym.Env):
@@ -81,50 +134,16 @@ class HeartsPlayEnvironment(gym.Env):
         # properly set in reset()
         self.core: HeartsCore | None = None
 
-    def _get_obs(self, player_idx: int = 0) -> ObsType:
-        """
-        Returns the current state from the perspective of player ``player_idx``.
-        Default is 0 which is the agent's index
-
-        For details on the observation space refer to the class' docs
-        """
-        state = np.zeros(217, dtype=np.int8)
-        state[0] = self.core.trick_no
-        current_trick = self.core.current_trick
-
-        for game_player_idx, (hand, played_cards) in enumerate(
-                zip(self.core.hands, self.core.played_cards)):
-            # player index within the state. This is to account for the fact that
-            # each state looks differently from each player's perspective
-            state_player_idx = (game_player_idx - player_idx) % 4
-            # hands
-            cards_in_hand_idx = np.array([
-                card_to_idx(card) for card in hand
-            ], dtype=np.int16)
-            state[cards_in_hand_idx + 1 + 52 * state_player_idx] = 1
-
-            # played
-            cards_played_idx = np.array([
-                card_to_idx(card) for card in played_cards
-            ], dtype=np.int16)
-            state[cards_played_idx + 1 + 52 * state_player_idx] = -1
-
-            # current trick
-            player_idx_in_trick = (game_player_idx - self.core.trick_starting_player_idx) % 4
-            if player_idx_in_trick < len(current_trick):
-                player_card_in_trick_idx = card_to_idx(
-                    current_trick[player_idx_in_trick]
-                )
-                state[player_card_in_trick_idx + 1 + 52 * state_player_idx] = 2
-
-        # leading suit
-        if len(current_trick) > 0:
-            leading_suit_state_idx = list(Suit).index(current_trick[0].suit) + 209
-            state[leading_suit_state_idx] = 1
-
-        # round points
-        state[213:217] = np.array(self.core.current_round_scores).astype(np.int8)
-        return state
+    def _get_obs(self) -> ObsType:
+        return create_play_env_obs(
+            trick_no=self.core.trick_no,
+            player_idx=self.core.current_player_idx,
+            trick_starting_player_idx=self.core.trick_starting_player_idx,
+            current_trick=self.core.current_trick,
+            hands=self.core.hands,
+            played_cards=self.core.played_cards,
+            current_round_points_collected=self.core.current_round_points_collected,
+        )
 
     def __simulate_next_opponent(self):
         opponent_callback = self.opponents_callbacks[self.core.current_player_idx - 1]
@@ -219,3 +238,17 @@ class HeartsPlayEnvironment(gym.Env):
                 self.__simulate_next_opponent()
 
         return self._get_obs(), reward, is_round_finished, False, {}
+
+    def action_masks(self) -> list[bool]:
+        hand = self.core.hands[self.core.current_player_idx]
+        valid_plays = get_valid_plays(
+            hand=hand,
+            trick=self.core.current_trick,
+            are_hearts_broken=self.core.are_hearts_broken,
+            is_first_trick=self.core.trick_no == 1,
+        )
+        valid_plays_indices = [card_to_idx(c) for c in valid_plays]
+
+        mask_np = np.full(52, False)
+        mask_np[valid_plays_indices] = True
+        return mask_np.tolist()
