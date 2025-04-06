@@ -7,3 +7,4 @@ tqdm
 academia-rl
 gymnasium
 stable-baselines3
+sb3-contrib
