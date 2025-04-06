@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -68,3 +69,21 @@ class TestHeartsGame(unittest.TestCase):
 
         game.play_round()
         self.assertEqual(PassDirection.LEFT, game.core.pass_direction)
+
+    def test_post_trick_callbacks_called(self):
+        with patch.object(RandomPlayer, 'post_trick_callback') as mocked_callback:
+            # arrange
+            game = get_game_with_random_players()
+            # act
+            game.play_round()
+            # assert
+            self.assertEqual(4 * 13, len(mocked_callback.mock_calls))
+
+    def test_post_round_callbacks_called(self):
+        with patch.object(RandomPlayer, 'post_round_callback') as mocked_callback:
+            # arrange
+            game = get_game_with_random_players()
+            # act
+            game.play_round()
+            # assert
+            self.assertEqual(4, len(mocked_callback.mock_calls))
