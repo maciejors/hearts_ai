@@ -105,21 +105,19 @@ class HeartsPlayEnvironment(gym.Env):
 
     Args:
         opponents_callbacks: Callbacks responsible for decision making of other
-            players. In a self-play environment, these should be snapshots of
-            the learning agent. This parameter should be a list of 3 functions,
-            each one accepting a state, and returning an action.
+            players. In a self-play environment, these should represent
+            snapshots of the learning agent. This parameter should be a list of
+            3 functions, each one accepting a state and an action mask, and
+            returning an action
         reward_setting: Whether to use the sparse or dense reward setting.
             Default: dense
     """
 
     def __init__(self,
-                 opponents_callbacks: list[Callable[[ObsType], ActType]],
+                 opponents_callbacks: list[Callable[[ObsType, list[bool]], ActType]],
                  reward_setting: Literal['dense', 'sparse'] = 'dense'):
         super().__init__()
 
-        if len(opponents_callbacks) != 3:
-            raise ValueError(f'Opponents callbacks list has a length of {len(opponents_callbacks)}'
-                             f' - it should have a length of 3.')
         self.opponents_callbacks = opponents_callbacks
 
         allowed_reward_settings = ['dense', 'sparse']
@@ -147,7 +145,7 @@ class HeartsPlayEnvironment(gym.Env):
 
     def __simulate_next_opponent(self):
         opponent_callback = self.opponents_callbacks[self.core.current_player_idx - 1]
-        opponent_action = opponent_callback(self._get_obs())
+        opponent_action = opponent_callback(self._get_obs(), self.action_masks())
         opponent_card = action_to_card(opponent_action)
         self.core.play_card(opponent_card)
 

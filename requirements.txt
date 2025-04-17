@@ -6,5 +6,5 @@ torch
 tqdm
 academia-rl
 gymnasium
-stable-baselines3
+stable-baselines3[extra]
 sb3-contrib
