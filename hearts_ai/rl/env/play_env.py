@@ -1,5 +1,5 @@
 import warnings
-from typing import Literal, Any, SupportsFloat, Callable
+from typing import Literal, Any, SupportsFloat
 
 import gymnasium as gym
 import numpy as np
@@ -7,7 +7,9 @@ from gymnasium.core import ObsType, ActType
 
 from hearts_ai.engine import HeartsCore, HeartsRules, Suit
 from hearts_ai.engine.utils import points_for_card, get_valid_plays
-from .utils import card_to_idx, action_to_card
+from .utils import (
+    card_to_idx, action_to_card, ActionTakingCallbackParam, handle_action_taking_callback_param,
+)
 
 
 def create_play_env_obs(hearts_core: HeartsCore) -> ObsType:
@@ -122,17 +124,18 @@ class HeartsPlayEnvironment(gym.Env):
             players. In a self-play environment, these should represent
             snapshots of the learning agent. This parameter should be a list of
             3 functions, each one accepting a state and an action mask, and
-            returning an action
+            returning an action. Alternatively it could also be a single object,
+            in which case it will be shared for all opponents.
         reward_setting: Whether to use the sparse or dense reward setting.
             Default: dense
     """
 
     def __init__(self,
-                 opponents_callbacks: list[Callable[[ObsType, list[bool]], ActType]],
+                 opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
                  reward_setting: Literal['dense', 'sparse'] = 'dense'):
         super().__init__()
 
-        self.opponents_callbacks = opponents_callbacks
+        self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
 
         allowed_reward_settings = ['dense', 'sparse']
         if reward_setting not in allowed_reward_settings:

@@ -1,5 +1,5 @@
 import warnings
-from typing import Callable, TypeAlias, Any, SupportsFloat
+from typing import TypeAlias, Any, SupportsFloat
 
 import gymnasium as gym
 import numpy as np
@@ -7,7 +7,9 @@ from gymnasium.core import ObsType, ActType
 
 from hearts_ai.engine import Card, HeartsCore, HeartsRules
 from .play_env import create_play_env_obs, create_play_env_action_masks
-from .utils import card_to_idx, action_to_card
+from .utils import (
+    card_to_idx, action_to_card, ActionTakingCallbackParam, handle_action_taking_callback_param,
+)
 
 PlayEnvObsType: TypeAlias = ObsType
 PlayEnvActType: TypeAlias = ActType
@@ -71,22 +73,30 @@ class HeartsCardsPassEnvironment(gym.Env):
     Args:
         opponents_callbacks: Callbacks responsible for decision making of other
             players. In a self-play environment, these should be snapshots of
-            the learning agent. This parameter should be a list of 3 functions,
-            each one accepting a state, and returning an action.
-        playing_callback: Callback used when performing rounds simulations.
-            It is responsible for decision making of every player.
+            the learning agent. It should be either a list of 3 elements, each
+            corresponding to each opponent clockwise, or a single object, in
+            which case it is shared for all opponents. A callback should
+            be a function accepting a state and an action mask, and returning
+            an action.
+        playing_callbacks: Callbacks used when performing rounds simulations.
+            If it is a list, the first callback is responsible for the learning
+            agent gameplay, and the rest for the remaining players clockwise.
+            If it is a single callback, it is shared for every player.
+            A callback should be a function accepting a play environment
+            state and an action mask, and returning a play environment action.
         eval_count: How many times to simulate the round for each variant
             (with and without card passing).
     """
 
     def __init__(self,
-                 opponents_callbacks: list[Callable[[ObsType, list[bool]], ActType]],
-                 playing_callback: Callable[[PlayEnvObsType, list[bool]], PlayEnvActType],
+                 opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
+                 playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
                  eval_count: int = 50):
         super().__init__()
 
-        self.opponents_callbacks = opponents_callbacks
-        self.playing_callback = playing_callback
+        self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
+        self.playing_callbacks = handle_action_taking_callback_param(playing_callbacks, 4)
+
         self.eval_count = eval_count
 
         self.action_space = gym.spaces.Discrete(52)
@@ -102,7 +112,7 @@ class HeartsCardsPassEnvironment(gym.Env):
 
     def _get_obs(self) -> ObsType:
         return create_cards_pass_env_obs(
-            player_hand=self._hands[0],
+            player_hand=self.hands[0],
             picked_cards=self.picked_cards,
         )
 
@@ -142,6 +152,7 @@ class HeartsCardsPassEnvironment(gym.Env):
                 opponent_hand = self.hands[opponent_player_idx]
                 opponent_picked_cards = []
                 for _ in range(3):
+                    # opponents card pass
                     obs = create_cards_pass_env_obs(opponent_hand, opponent_picked_cards)
                     action_masks = create_cards_pass_env_action_masks(
                         opponent_hand, opponent_picked_cards)
@@ -153,9 +164,11 @@ class HeartsCardsPassEnvironment(gym.Env):
             hearts_core.complete_pass_cards()
 
         while not hearts_core.is_round_finished:
+            # simulate gameplay
             obs = create_play_env_obs(hearts_core)
             action_masks = create_play_env_action_masks(hearts_core)
-            action = self.playing_callback(obs, action_masks)
+            playing_callback = self.playing_callbacks[hearts_core.current_player_idx]
+            action = playing_callback(obs, action_masks)
             card_to_play = action_to_card(action)
             hearts_core.play_card(card_to_play)
 

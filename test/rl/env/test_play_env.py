@@ -14,7 +14,7 @@ from test.utils import c, cl
 def get_sample_env(reward_setting: Literal['dense', 'sparse'] = 'dense',
                    ) -> tuple[HeartsPlayEnvironment, ObsType]:
     env = HeartsPlayEnvironment(
-        opponents_callbacks=[MagicMock() for _ in range(3)],
+        opponents_callbacks=MagicMock(),
         reward_setting=reward_setting,
     )
     obs_reset, _ = env.reset(seed=28)
@@ -190,3 +190,16 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         _, reward, _, _, _ = env.step(0)
         self.assertEqual(-26, reward,
                          'Agent should get a penalty after an opponent shoots the moon')
+
+    @patch.multiple(
+        HeartsCore,
+        **get_mock_params_allowing_step(agent_hand=[c('3♣'), c('5♠'), c('Q♥')]),
+        current_trick=cl(['K♣']),
+    )
+    def test_action_mask_only_valid_cards(self):
+        env, _ = get_sample_env()
+        action_masks = env.action_masks()
+
+        self.assertTrue(action_masks[card_to_idx(c('3♣'))])
+        self.assertFalse(action_masks[card_to_idx(c('5♠'))])
+        self.assertFalse(action_masks[card_to_idx(c('Q♥'))])

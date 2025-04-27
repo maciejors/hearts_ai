@@ -1,6 +1,21 @@
+from typing import TypeVar, Callable
+
 from gymnasium.core import ActType
 
 from hearts_ai.engine import Card, Suit
+
+_ActTypeGeneric = TypeVar('_ActTypeGeneric')
+_ObsTypeGeneric = TypeVar('_ObsTypeGeneric')
+ActionTakingCallback = Callable[[_ObsTypeGeneric, list[bool]], _ActTypeGeneric]
+ActionTakingCallbackParam = ActionTakingCallback | list[ActionTakingCallback]
+
+
+def handle_action_taking_callback_param(p: ActionTakingCallbackParam,
+                                        list_len: int,
+                                        ) -> list[ActionTakingCallback]:
+    if p is list:
+        return p
+    return [p] * list_len
 
 
 def action_to_card(action: ActType) -> Card:
