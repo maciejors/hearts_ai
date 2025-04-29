@@ -6,7 +6,7 @@ import numpy as np
 from gymnasium.core import ObsType, ActType
 
 from hearts_ai.engine import Card, HeartsCore, HeartsRules
-from .play_env import create_play_env_obs, create_play_env_action_masks
+from .play_env import create_play_env_obs_from_hearts_core, create_play_env_action_masks_from_hearts_core
 from .utils import (
     card_to_idx, action_to_card, ActionTakingCallbackParam, handle_action_taking_callback_param,
 )
@@ -165,8 +165,8 @@ class HeartsCardsPassEnvironment(gym.Env):
 
         while not hearts_core.is_round_finished:
             # simulate gameplay
-            obs = create_play_env_obs(hearts_core)
-            action_masks = create_play_env_action_masks(hearts_core)
+            obs = create_play_env_obs_from_hearts_core(hearts_core)
+            action_masks = create_play_env_action_masks_from_hearts_core(hearts_core)
             playing_callback = self.playing_callbacks[hearts_core.current_player_idx]
             action = playing_callback(obs, action_masks)
             card_to_play = action_to_card(action)
