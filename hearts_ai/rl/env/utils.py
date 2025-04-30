@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from typing import TypeVar, Callable
 
 from gymnasium.core import ActType
@@ -13,7 +14,7 @@ ActionTakingCallbackParam = ActionTakingCallback | list[ActionTakingCallback]
 def handle_action_taking_callback_param(p: ActionTakingCallbackParam,
                                         list_len: int,
                                         ) -> list[ActionTakingCallback]:
-    if p is list:
+    if isinstance(p, Iterable):
         return p
     return [p] * list_len
 
