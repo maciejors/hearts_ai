@@ -1,5 +1,5 @@
-from .cards_pass_env import HeartsCardsPassEnvironment
-from .play_env import HeartsPlayEnvironment
+from .env_cards_pass import HeartsCardsPassEnvironment
+from .env_play import HeartsPlayEnvironment
 
 __all__ = [
     'HeartsPlayEnvironment',

@@ -5,108 +5,17 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-from hearts_ai.engine import HeartsCore, HeartsRules, Suit, Card
-from hearts_ai.engine.utils import points_for_card, get_valid_plays
-from .utils import (
-    card_to_idx, action_to_card, ActionTakingCallbackParam, handle_action_taking_callback_param,
+from hearts_ai.engine import HeartsCore, HeartsRules
+from hearts_ai.engine.utils import points_for_card
+from .obs import (
+    create_play_env_obs_from_hearts_core,
+    create_play_env_action_masks_from_hearts_core,
 )
-
-
-def create_play_env_obs(
-        trick_no: int,
-        player_idx: int,
-        trick_starting_player_idx: int,
-        current_trick: list[Card],
-        hands: list[list[Card]],
-        played_cards: list[list[Card]],
-        current_round_points_collected: list[int],
-) -> ObsType:
-    """
-    Returns the current state from the perspective of the current player.
-
-    For details on the observation space refer to :class:`HeartsPlayEnvironment`
-    """
-    state = np.zeros(217, dtype=np.int8)
-
-    state[0] = trick_no
-
-    for game_player_idx, (hand, played_cards) in enumerate(zip(hands, played_cards)):
-        # player index within the state. This is to account for the fact that
-        # each state looks differently from each player's perspective
-        state_player_idx = (game_player_idx - player_idx) % 4
-        # hands
-        cards_in_hand_idx = np.array([
-            card_to_idx(card) for card in hand
-        ], dtype=np.int16)
-        state[cards_in_hand_idx + 1 + 52 * state_player_idx] = 1
-
-        # played
-        cards_played_idx = np.array([
-            card_to_idx(card) for card in played_cards
-        ], dtype=np.int16)
-        state[cards_played_idx + 1 + 52 * state_player_idx] = -1
-
-        # current trick
-        player_idx_in_trick = (game_player_idx - trick_starting_player_idx) % 4
-        if player_idx_in_trick < len(current_trick):
-            player_card_in_trick_idx = card_to_idx(
-                current_trick[player_idx_in_trick]
-            )
-            state[player_card_in_trick_idx + 1 + 52 * state_player_idx] = 2
-
-    # leading suit
-    if len(current_trick) > 0:
-        leading_suit_state_idx = list(Suit).index(current_trick[0].suit) + 209
-        state[leading_suit_state_idx] = 1
-
-    # round points
-    state[213:217] = np.array(current_round_points_collected).astype(np.int8)
-    return state
-
-
-def create_play_env_obs_from_hearts_core(hearts_core: HeartsCore) -> ObsType:
-    return create_play_env_obs(
-        trick_no=hearts_core.trick_no,
-        player_idx=hearts_core.current_player_idx,
-        trick_starting_player_idx=hearts_core.trick_starting_player_idx,
-        current_trick=hearts_core.current_trick,
-        hands=hearts_core.hands,
-        played_cards=hearts_core.played_cards,
-        current_round_points_collected=hearts_core.current_round_points_collected,
-    )
-
-
-def create_play_env_action_masks(
-        hand: list[Card],
-        current_trick: list[Card],
-        are_hearts_broken: bool,
-        is_first_trick: bool,
-) -> ObsType:
-    """
-    Returns the action masks from the perspective of the current player.
-
-    For details on the action space refer to :class:`HeartsPlayEnvironment`
-    """
-    valid_plays = get_valid_plays(
-        hand=hand,
-        trick=current_trick,
-        are_hearts_broken=are_hearts_broken,
-        is_first_trick=is_first_trick,
-    )
-    valid_plays_indices = [card_to_idx(c) for c in valid_plays]
-
-    mask_np = np.full(52, False)
-    mask_np[valid_plays_indices] = True
-    return mask_np.tolist()
-
-
-def create_play_env_action_masks_from_hearts_core(hearts_core: HeartsCore) -> list[bool]:
-    return create_play_env_action_masks(
-        hand=hearts_core.hands[hearts_core.current_player_idx],
-        current_trick=hearts_core.current_trick,
-        are_hearts_broken=hearts_core.are_hearts_broken,
-        is_first_trick=hearts_core.trick_no == 1,
-    )
+from .utils import (
+    action_to_card,
+    ActionTakingCallbackParam,
+    handle_action_taking_callback_param,
+)
 
 
 class HeartsPlayEnvironment(gym.Env):

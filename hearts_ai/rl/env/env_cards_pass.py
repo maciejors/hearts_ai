@@ -6,43 +6,20 @@ import numpy as np
 from gymnasium.core import ObsType, ActType
 
 from hearts_ai.engine import Card, HeartsCore, HeartsRules
-from .play_env import create_play_env_obs_from_hearts_core, create_play_env_action_masks_from_hearts_core
+from .obs import (
+    create_cards_pass_env_obs,
+    create_cards_pass_env_action_masks,
+    create_play_env_obs_from_hearts_core,
+    create_play_env_action_masks_from_hearts_core,
+)
 from .utils import (
-    card_to_idx, action_to_card, ActionTakingCallbackParam, handle_action_taking_callback_param,
+    action_to_card,
+    ActionTakingCallbackParam,
+    handle_action_taking_callback_param,
 )
 
 PlayEnvObsType: TypeAlias = ObsType
 PlayEnvActType: TypeAlias = ActType
-
-
-def create_cards_pass_env_obs(
-        player_hand: list[Card],
-        picked_cards: list[Card],
-) -> ObsType:
-    """
-    For details on the observation space refer to :class:`HeartsCardPassEnvironment`
-    """
-    state = np.zeros(52, dtype=np.int8)
-
-    cards_in_hand_idx = np.array([
-        card_to_idx(card) for card in player_hand
-    ], dtype=np.int16)
-    state[cards_in_hand_idx] = 1
-
-    picked_cards_idx = np.array([
-        card_to_idx(card) for card in picked_cards
-    ], dtype=np.int16)
-    state[picked_cards_idx] = -1
-
-    return state
-
-
-def create_cards_pass_env_action_masks(
-        player_hand: list[Card],
-        picked_cards: list[Card]
-) -> list[bool]:
-    obs = create_cards_pass_env_obs(player_hand, picked_cards)
-    return np.array(obs == 1).tolist()
 
 
 class HeartsCardsPassEnvironment(gym.Env):
