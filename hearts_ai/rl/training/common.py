@@ -79,5 +79,10 @@ class SaveAllRewards(BaseCallback):
                 .reset_index() \
                 .rename(columns={'index': 'step'})
             df['step'] += 1
+
+            # make the step absolute
+            step_offset = self.num_timesteps - len(df)
+            df['step'] += step_offset
+
             save_path = os.path.join(self.folder, 'rewards_all.csv')
             df.to_csv(save_path, index=False)
