@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -85,12 +86,19 @@ def load_training_logs(log_path: str) -> pd.DataFrame:
     return training_logs_df
 
 
-def load_all_results(log_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Loads all results in order: Evaluation results, All training rewards, Training logs
-    """
-    return (
-        load_eval_results(log_path),
-        load_all_training_rewards(log_path),
-        load_training_logs(log_path),
-    )
+@dataclass
+class TrainingResults:
+    eval_results_df: pd.DataFrame
+    all_rewards_df: pd.DataFrame
+    training_logs_df: pd.DataFrame
+
+    @classmethod
+    def load(cls, log_path: str) -> 'TrainingResults':
+        """
+        Loads all results in order: Evaluation results, All training rewards, Training logs
+        """
+        return cls(
+            eval_results_df=load_eval_results(log_path),
+            all_rewards_df=load_all_training_rewards(log_path),
+            training_logs_df=load_training_logs(log_path),
+        )
