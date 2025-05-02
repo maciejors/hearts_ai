@@ -54,6 +54,12 @@ class HeartsCore:
     def hands(self) -> list[list[Card]]:
         return [c.copy() for c in self._hands]
 
+    @hands.setter
+    def hands(self, value):
+        self._hands = value
+        # this is particularly useful for pass env
+        self.set_starting_player()
+
     @property
     def taken_cards(self) -> list[list[Card]]:
         return [c.copy() for c in self._taken_cards]

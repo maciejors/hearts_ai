@@ -68,7 +68,7 @@ class HeartsCardsPassEnvironment(gym.Env):
     def __init__(self,
                  opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
                  playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
-                 eval_count: int = 50):
+                 eval_count: int = 20):
         super().__init__()
 
         self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
@@ -77,7 +77,7 @@ class HeartsCardsPassEnvironment(gym.Env):
         self.eval_count = eval_count
 
         self.action_space = gym.spaces.Discrete(52)
-        self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(217,), dtype=np.int8)
+        self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(52,), dtype=np.int8)
 
         # properly set in reset()
         self._hands: list[list[Card]] | None = None
@@ -104,6 +104,7 @@ class HeartsCardsPassEnvironment(gym.Env):
         core = HeartsCore(
             random_state=self.np_random.integers(999999),
         )
+        core.next_round()
         self._hands = core.hands
         self.picked_cards = []
 
@@ -120,7 +121,7 @@ class HeartsCardsPassEnvironment(gym.Env):
             random_state=self.np_random.integers(999999),
         )
         hearts_core.next_round()
-        hearts_core._hands = self.hands
+        hearts_core.hands = self.hands
 
         if include_card_passing:
             hearts_core.pick_cards_to_pass(0, self.picked_cards)
@@ -148,6 +149,9 @@ class HeartsCardsPassEnvironment(gym.Env):
             action = playing_callback(obs, action_masks)
             card_to_play = action_to_card(action)
             hearts_core.play_card(card_to_play)
+
+            if hearts_core.is_current_trick_full:
+                hearts_core.complete_trick()
 
         end_of_round_score = hearts_core.current_round_scores[0]
         if hearts_core.is_moon_shot_triggered and end_of_round_score == 0:
