@@ -1,4 +1,5 @@
-import os.path
+import os
+import warnings
 from typing import Literal, Type
 
 import numpy as np
@@ -20,27 +21,28 @@ def train_playing_agent(
         agent_cls: Type[SupportedAlgorithm],
         reward_setting: Literal['dense', 'sparse'],
         log_path: str,
-        opponents_update_freq: list[int],
-        final_stage_len: int,
+        stages_lengths_episodes: list[int],
         eval_freq_episodes: int = 200,
         progress_bar: bool = False,
+        random_state: int | None = None,
 ) -> SupportedAlgorithm:
     """
     Args:
         agent_cls: Agent class
         reward_setting: Reward setting for the playing environment
         log_path: Path to a directory where logs and agents will be saved
-        opponents_update_freq: Specifies when the opponents are updated with
-            new clones of the learning agent. A value of ``[k1, k2]`` means the
-            opponents will update after ``k1`` episodes of training, and then
-            after another ``k2`` episodes.
-            If empty, the opponents will not be updated at all during training.
-        final_stage_len: For how many episodes to run the final
-            stage of training (i.e. after the final opponents' update)
+        stages_lengths_episodes: Specifies how long the learning process
+            should take, and when the opponents are updated with new clones of
+            the learning agent. A value of ``[k1, k2]`` means the opponents
+            will update after ``k1`` episodes of training, and then the
+            training will proceed for another ``k2`` episodes before terminating.
+            If this is a one-element list, the opponents will not be updated
+            at all during training.
         eval_freq_episodes: how often to evaluate the agent (in episodes).
         progress_bar:
             Whether or not to display progress bars during training. This is
             passed down to the models.
+        random_state: Randomness control.
 
     Returns:
         A trained agent
@@ -50,10 +52,10 @@ def train_playing_agent(
         >>>     agent_cls=MaskablePPO,
         >>>     reward_setting='dense',
         >>>     log_path='training_logs',
-        >>>     opponents_update_freq=[192*10, 192*10, 192*20],
-        >>>     final_stage_len=192*25,
+        >>>     stages_lengths_episodes=[192*10, 192*10, 192*20, 192*25],
         >>>     eval_freq_episodes=200,
         >>>     progress_bar=True,
+        >>>     random_state=42,
         >>> )
 
     Notes:
@@ -62,16 +64,27 @@ def train_playing_agent(
           frequency. Otherwise PPO will extend the training to fill its
           buffer anyway.
     """
+    if random_state is None:
+        warnings.warn(
+            '`random_state` not set - consider using it for reproducibility',
+            UserWarning,
+        )
+    rng = np.random.default_rng(random_state)
+
+    def get_seed() -> int:
+        return int(rng.integers(999999))
+
     ep_length = 13
 
     env = HeartsPlayEnvironment(
         opponents_callbacks=[],
         reward_setting=reward_setting,
     )
+
     if agent_cls == MaskablePPO:
         n_steps = 2496  # multiple of 832 = 64 * 13 (batch_size * episode_length)
         print(f'PPO agent will update every {n_steps // ep_length} episodes')
-        agent = MaskablePPO('MlpPolicy', env, n_steps=n_steps, seed=28)
+        agent = MaskablePPO('MlpPolicy', env, n_steps=n_steps, seed=get_seed())
     else:
         raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
 
@@ -79,10 +92,12 @@ def train_playing_agent(
 
     # in evaluation we are only concerned about the end result of the round, hence the sparse setting.
     env_eval_random = Monitor(HeartsPlayEnvironment(
-        opponents_callbacks=[get_random_action_taking_callback(random_state=i)
-                             for i in range(3)],
+        opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
+                             for _ in range(3)],
         reward_setting='sparse',
     ))
+    env_eval_random.reset(seed=get_seed())
+
     eval_log_path = os.path.join(log_path, 'eval')
     eval_random_callback = MaskableEvalCallback(
         env_eval_random,
@@ -92,11 +107,11 @@ def train_playing_agent(
         n_eval_episodes=250,
     )
 
-    steps_per_stage = np.array(opponents_update_freq) * ep_length
-    steps_per_stage = np.append(steps_per_stage, final_stage_len * ep_length)
+    steps_per_stage = np.array(stages_lengths_episodes) * ep_length
 
     for stage_no, total_timesteps in enumerate(steps_per_stage.tolist(), 1):
         update_self_play_clones(env, agent)
+        env.reset(seed=get_seed())
 
         log_subpath = os.path.join(log_path, f'stage_{stage_no}')
         logger = configure_sb3logger(log_subpath, ['csv'])
@@ -117,5 +132,4 @@ def train_playing_agent(
             callback=callbacks,
             progress_bar=progress_bar,
         )
-
     return agent
