@@ -20,6 +20,7 @@ from .common import (
 def train_card_passing_agent(
         agent_cls: Type[SupportedAlgorithm],
         playing_agent: SupportedAlgorithm,
+        env_kwargs: dict,
         log_path: str,
         stages_lengths_episodes: list[int],
         eval_freq_episodes: int = 600,
@@ -30,6 +31,8 @@ def train_card_passing_agent(
     Args:
         agent_cls: Agent class
         playing_agent: A trained playing agent
+        env_kwargs: Extra keyword arguments for :class:`HeartsCardPassEnvironment`
+            (except for ``opponents_callbacks`` and ``playing_callbacks``)
         log_path: Path to a directory where logs and agents will be saved
         stages_lengths_episodes: Specifies how long the learning process
             should take, and when the opponents are updated with new clones of
@@ -51,8 +54,9 @@ def train_card_passing_agent(
         >>> agent = train_card_passing_agent(
         >>>     agent_cls=MaskablePPO,
         >>>     playing_agent=MaskablePPO.load('path/to/trained/player.zip'),
+        >>>     env_kwargs={'eval_count': 10},
         >>>     log_path='training_logs',
-        >>>     stages_lengths_episodes=[192*10, 192*10, 192*20, 192*25],
+        >>>     stages_lengths_episodes=[512*10, 512*10, 512*20, 512*25],
         >>>     eval_freq_episodes=600,
         >>>     progress_bar=True,
         >>>     random_state=42,
@@ -82,6 +86,7 @@ def train_card_passing_agent(
     env = HeartsCardsPassEnvironment(
         opponents_callbacks=[],
         playing_callbacks=playing_callback,
+        **env_kwargs,
     )
 
     if agent_cls == MaskablePPO:

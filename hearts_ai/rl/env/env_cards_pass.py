@@ -68,7 +68,7 @@ class HeartsCardsPassEnvironment(gym.Env):
     def __init__(self,
                  opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
                  playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
-                 eval_count: int = 20):
+                 eval_count: int = 10):
         super().__init__()
 
         self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)

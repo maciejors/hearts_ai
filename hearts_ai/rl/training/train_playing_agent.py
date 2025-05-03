@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Literal, Type
+from typing import Type
 
 import numpy as np
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
@@ -19,7 +19,7 @@ from .common import (
 
 def train_playing_agent(
         agent_cls: Type[SupportedAlgorithm],
-        reward_setting: Literal['dense', 'sparse'],
+        env_kwargs: dict,
         log_path: str,
         stages_lengths_episodes: list[int],
         eval_freq_episodes: int = 200,
@@ -29,7 +29,8 @@ def train_playing_agent(
     """
     Args:
         agent_cls: Agent class
-        reward_setting: Reward setting for the playing environment
+        env_kwargs: Extra keyword arguments for :class:`HeartsPlayEnvironment`
+            (except for ``opponents_callbacks``)
         log_path: Path to a directory where logs and agents will be saved
         stages_lengths_episodes: Specifies how long the learning process
             should take, and when the opponents are updated with new clones of
@@ -50,7 +51,7 @@ def train_playing_agent(
     Examples:
         >>> agent = train_playing_agent(
         >>>     agent_cls=MaskablePPO,
-        >>>     reward_setting='dense',
+        >>>     env_kwargs={'reward_setting': 'dense'},
         >>>     log_path='training_logs',
         >>>     stages_lengths_episodes=[192*10, 192*10, 192*20, 192*25],
         >>>     eval_freq_episodes=200,
@@ -78,7 +79,7 @@ def train_playing_agent(
 
     env = HeartsPlayEnvironment(
         opponents_callbacks=[],
-        reward_setting=reward_setting,
+        **env_kwargs,
     )
 
     if agent_cls == MaskablePPO:
