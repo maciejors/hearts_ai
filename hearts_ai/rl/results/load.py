@@ -1,11 +1,12 @@
 import os
-from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
+from .training_results import TrainingResults
 
-def load_eval_results(log_path: str) -> pd.DataFrame:
+
+def _load_eval_results(log_path: str) -> pd.DataFrame:
     eval_results_path = os.path.join(log_path, 'eval', 'evaluations.npz')
     eval_results = np.load(eval_results_path)
 
@@ -32,7 +33,7 @@ def load_eval_results(log_path: str) -> pd.DataFrame:
     return eval_results_df
 
 
-def load_all_training_rewards(log_path: str) -> pd.DataFrame:
+def _load_all_training_rewards(log_path: str) -> pd.DataFrame:
     all_dfs = []
 
     for stage_subdir in os.listdir(log_path):
@@ -51,7 +52,7 @@ def load_all_training_rewards(log_path: str) -> pd.DataFrame:
     return all_rewards_df
 
 
-def load_training_logs(log_path: str) -> pd.DataFrame:
+def _load_training_logs(log_path: str) -> pd.DataFrame:
     all_dfs = []
 
     for stage_subdir in os.listdir(log_path):
@@ -86,19 +87,12 @@ def load_training_logs(log_path: str) -> pd.DataFrame:
     return training_logs_df
 
 
-@dataclass
-class TrainingResults:
-    eval_results_df: pd.DataFrame
-    all_rewards_df: pd.DataFrame
-    training_logs_df: pd.DataFrame
-
-    @classmethod
-    def load(cls, log_path: str) -> 'TrainingResults':
-        """
-        Loads all results in order: Evaluation results, All training rewards, Training logs
-        """
-        return cls(
-            eval_results_df=load_eval_results(log_path),
-            all_rewards_df=load_all_training_rewards(log_path),
-            training_logs_df=load_training_logs(log_path),
-        )
+def load_training_results(log_path: str) -> TrainingResults:
+    """
+    Loads all results in order: Evaluation results, All training rewards, Training logs
+    """
+    return TrainingResults(
+        eval_results_df=_load_eval_results(log_path),
+        all_rewards_df=_load_all_training_rewards(log_path),
+        training_logs_df=_load_training_logs(log_path),
+    )

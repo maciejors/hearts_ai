@@ -169,5 +169,5 @@ cython_debug/
 *.npz
 *.zip
 
-# logs
-logs/
+# outputs (logs, plots, etc.)
+output/
