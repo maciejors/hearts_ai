@@ -23,6 +23,7 @@ def train_playing_agent(
         log_path: str,
         stages_lengths_episodes: list[int],
         eval_freq_episodes: int = 200,
+        n_eval_episodes: int = 250,
         progress_bar: bool = False,
         random_state: int | None = None,
 ) -> SupportedAlgorithm:
@@ -40,6 +41,7 @@ def train_playing_agent(
             If this is a one-element list, the opponents will not be updated
             at all during training.
         eval_freq_episodes: how often to evaluate the agent (in episodes).
+        n_eval_episodes: how many episodes to run in a single evaluation.
         progress_bar:
             Whether or not to display progress bars during training. This is
             passed down to the models.
@@ -105,7 +107,7 @@ def train_playing_agent(
         best_model_save_path=eval_log_path,
         log_path=eval_log_path,
         eval_freq=eval_freq_episodes * ep_length,
-        n_eval_episodes=250,
+        n_eval_episodes=n_eval_episodes,
     )
 
     steps_per_stage = np.array(stages_lengths_episodes) * ep_length
