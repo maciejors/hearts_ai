@@ -62,19 +62,36 @@ class HeartsCardsPassEnvironment(gym.Env):
             A callback should be a function accepting a play environment
             state and an action mask, and returning a play environment action.
         eval_count: How many times to simulate the round for each variant
-            (with and without card passing).
+            (with and without card passing). It can be a two-element list,
+            specifying evaluation count separately for each variant, or a
+            single integer, in which case it is identical for both.
+        supress_deterministic_eval_warn: If set to False, the environment will
+            inform the user when evaluations for either variant are identical
+            10 times in a row.
     """
 
-    def __init__(self,
-                 opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
-                 playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
-                 eval_count: int = 10):
+    def __init__(
+            self,
+            opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
+            playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
+            eval_count: int | list[int] = 10,
+            supress_deterministic_eval_warn: bool = False,
+    ):
         super().__init__()
 
         self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
         self.playing_callbacks = handle_action_taking_callback_param(playing_callbacks, 4)
 
-        self.eval_count = eval_count
+        if isinstance(eval_count, int):
+            self.eval_count = [eval_count] * 2
+        elif isinstance(eval_count, list) and len(eval_count) == 2:
+            self.eval_count = eval_count
+        else:
+            raise ValueError('Unsupported eval_count value. It needs to be either an integer,'
+                             'or a two-element list.')
+
+        self.supress_deterministic_eval_warn = supress_deterministic_eval_warn
+        self.__times_consecutive_eval_identical = [0, 0]
 
         self.action_space = gym.spaces.Discrete(52)
         self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(52,), dtype=np.int8)
@@ -158,6 +175,36 @@ class HeartsCardsPassEnvironment(gym.Env):
             return -26
         return end_of_round_score
 
+    def __handle_deterministic_eval_check(
+            self,
+            pts_with_passing: np.ndarray,
+            pts_no_passing: np.ndarray,
+    ):
+        print(pts_with_passing)
+        print(pts_no_passing)
+        print()
+
+        for i, pts in enumerate([pts_with_passing, pts_no_passing]):
+            if np.all(pts == pts[0]):
+                self.__times_consecutive_eval_identical[i] += 1
+            else:
+                self.__times_consecutive_eval_identical[i] = 0
+
+        if self.__times_consecutive_eval_identical[0] == 10:
+            warnings.warn(
+                'During reward calculation, all evaluations for a variant with '
+                'card passing were identical 10 times in a row. This might mean '
+                'that card passing and playing decisions are deterministic. '
+                'Consider setting the first element for ``eval_count`` parameter'
+                'to 1 for faster performance.')
+        if self.__times_consecutive_eval_identical[1] == 10:
+            warnings.warn(
+                'During reward calculation, all evaluations for a variant without '
+                'card passing were identical 10 times in a row. This might mean '
+                'that playing decisions are deterministic. '
+                'Consider setting the second element for ``eval_count`` parameter'
+                'to 1 for faster performance.')
+
     def step(
             self, action: ActType
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
@@ -171,14 +218,18 @@ class HeartsCardsPassEnvironment(gym.Env):
         if len(self.picked_cards) < 3:
             return self._get_obs(), 0, False, False, {}
 
-        pts_no_passing = np.array([
-            self.__simulate_round(include_card_passing=False)
-            for _ in range(self.eval_count)
-        ])
         pts_with_passing = np.array([
             self.__simulate_round(include_card_passing=True)
-            for _ in range(self.eval_count)
+            for _ in range(self.eval_count[0])
         ])
+        pts_no_passing = np.array([
+            self.__simulate_round(include_card_passing=False)
+            for _ in range(self.eval_count[1])
+        ])
+
+        if not self.supress_deterministic_eval_warn:
+            self.__handle_deterministic_eval_check(pts_with_passing, pts_no_passing)
+
         reward = pts_with_passing.mean() - pts_no_passing.mean()
         return self._get_obs(), reward, True, False, {}
 
