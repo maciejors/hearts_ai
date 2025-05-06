@@ -63,11 +63,8 @@ class HeartsPlayEnvironment(gym.Env):
     of points collected in that trick, and if another player has shot the moon,
     the reward is -26.
 
-    The last reward setting, "eval", is designed to be used during training
-    evaluation, to closely represent the game scores. It is non-zero only after
-    the last trick, where it is equal to the negative of the agent's score.
-    This means it differs from the sparse reward setting in how moon shots
-    are valued (the reward is 0 for successful moon shots).
+    The last reward setting, "eval", is identical to sparse. It is designed as
+    separate in case there is a need to make it different.
 
     Args:
         opponents_callbacks: Callbacks responsible for decision making of other
@@ -193,11 +190,11 @@ class HeartsPlayEnvironment(gym.Env):
     @staticmethod
     def _calculate_eval_reward(
             is_round_finished: bool,
-            current_round_scores: list[int]
+            current_round_points_collected: list[int]
     ) -> int:
-        if not is_round_finished:
-            return 0
-        return -current_round_scores[0]
+        return HeartsPlayEnvironment._calculate_sparse_reward(
+            is_round_finished, current_round_points_collected,
+        )
 
     def step(
             self, action: ActType
@@ -230,9 +227,9 @@ class HeartsPlayEnvironment(gym.Env):
                 trick_winner_idx == 0
             )
         else:  # eval
-            reward = HeartsPlayEnvironment._calculate_sparse_reward(
+            reward = HeartsPlayEnvironment._calculate_eval_reward(
                 self.core.is_round_finished,
-                self.core.current_round_scores,
+                self.core.current_round_points_collected,
             )
 
         is_round_finished = self.core.is_round_finished
