@@ -11,7 +11,7 @@ from hearts_ai.rl.env.utils import card_to_idx
 from test.utils import c, cl
 
 
-def get_sample_env(reward_setting: Literal['dense', 'sparse'] = 'dense',
+def get_sample_env(reward_setting: Literal['dense', 'sparse', 'eval'] = 'dense',
                    card_passing_callbacks=None,
                    ) -> tuple[HeartsPlayEnvironment, ObsType]:
     env = HeartsPlayEnvironment(
@@ -192,6 +192,30 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         _, reward, _, _, _ = env.step(0)
         self.assertEqual(-26, reward,
                          'Agent should get a penalty after an opponent shoots the moon')
+
+    @patch.multiple(
+        HeartsCore,
+        **get_mock_params_allowing_step(),
+        complete_trick=get_mock_complete_trick_14p(),
+        current_round_scores=[14, 3, 3, 6],
+    )
+    def test_eval_reward_zero_mid_game(self):
+        env, _ = get_sample_env('eval')
+        _, reward, _, _, _ = env.step(0)
+        self.assertEqual(0, reward, 'Eval reward should be 0 mid-round')
+
+    @patch.multiple(
+        HeartsCore,
+        **get_mock_params_allowing_step(),
+        complete_trick=get_mock_complete_trick_14p(),
+        current_round_scores=[14, 3, 3, 6],
+        is_round_finished=True,
+    )
+    def test_eval_reward_regular_end_of_round(self):
+        env, _ = get_sample_env('eval')
+        _, reward, _, _, _ = env.step(0)
+        self.assertEqual(-14, reward,
+                         "Eval reward should reflect agent's score at the end of round")
 
     @patch.multiple(
         HeartsCore,

@@ -93,11 +93,10 @@ def train_playing_agent(
 
     os.makedirs(log_path, exist_ok=True)
 
-    # in evaluation we are only concerned about the end result of the round, hence the sparse setting.
     env_eval_random = Monitor(HeartsPlayEnvironment(
         opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
                              for _ in range(3)],
-        reward_setting='sparse',
+        reward_setting='eval',
     ))
     env_eval_random.reset(seed=get_seed())
 
