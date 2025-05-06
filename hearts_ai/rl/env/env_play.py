@@ -1,5 +1,5 @@
 import warnings
-from typing import Literal, Any, SupportsFloat
+from typing import Literal, Any, SupportsFloat, TypeAlias
 
 import gymnasium as gym
 import numpy as np
@@ -10,12 +10,17 @@ from hearts_ai.engine.utils import points_for_card
 from .obs import (
     create_play_env_obs_from_hearts_core,
     create_play_env_action_masks_from_hearts_core,
+    create_cards_pass_env_obs,
+    create_cards_pass_env_action_masks,
 )
 from .utils import (
     action_to_card,
     ActionTakingCallbackParam,
     handle_action_taking_callback_param,
 )
+
+CardPassEnvObsType: TypeAlias = ObsType
+CardPassEnvActType: TypeAlias = ActType
 
 
 class HeartsPlayEnvironment(gym.Env):
@@ -67,11 +72,19 @@ class HeartsPlayEnvironment(gym.Env):
             in which case it will be shared for all opponents.
         reward_setting: Whether to use the sparse or dense reward setting.
             Default: dense
+        card_passing_callbacks: Callbacks responsible for picking the cards to
+            pass before each round. If set to ``None``, card passing will be
+            disabled during training. It is useful to set this callback when
+            training the card passing agent and the playing agent simultaneously.
     """
 
-    def __init__(self,
-                 opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
-                 reward_setting: Literal['dense', 'sparse'] = 'dense'):
+    def __init__(
+            self,
+            opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
+            reward_setting: Literal['dense', 'sparse'] = 'dense',
+            card_passing_callbacks: ActionTakingCallbackParam[
+                                        CardPassEnvObsType, CardPassEnvActType] | None = None,
+    ):
         super().__init__()
 
         self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
@@ -81,6 +94,12 @@ class HeartsPlayEnvironment(gym.Env):
             raise ValueError(f'Invalid `reward_setting`: "{reward_setting}". '
                              f'Accepted values: {allowed_reward_settings}.')
         self.reward_setting = reward_setting
+
+        if card_passing_callbacks is not None:
+            self.card_passing_callbacks = handle_action_taking_callback_param(
+                card_passing_callbacks, 4)
+        else:
+            self.card_passing_callbacks = None
 
         self.action_space = gym.spaces.Discrete(52)
         self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(217,), dtype=np.int8)
@@ -105,12 +124,30 @@ class HeartsPlayEnvironment(gym.Env):
     ) -> tuple[ObsType, dict[str, Any]]:
         super().reset(seed=seed)
 
+        enable_passing_cards = self.card_passing_callbacks is not None
         self.core = HeartsCore(
-            rules=HeartsRules(passing_cards=False),
+            rules=HeartsRules(passing_cards=enable_passing_cards),
             random_state=self.np_random.integers(999999),
         )
 
         self.core.next_round()
+
+        if enable_passing_cards and not self.core.are_cards_passed:
+            for player_idx, card_passing_callback in enumerate(self.card_passing_callbacks):
+
+                picked_cards = []
+                player_hand = self.core.hands[player_idx]
+
+                for _ in range(3):
+                    obs = create_cards_pass_env_obs(player_hand, picked_cards)
+                    action_masks = create_cards_pass_env_action_masks(player_hand, picked_cards)
+                    action = card_passing_callback(obs, action_masks)
+                    card_to_pass = action_to_card(action)
+                    picked_cards.append(card_to_pass)
+
+                self.core.pick_cards_to_pass(player_idx, picked_cards)
+            self.core.complete_pass_cards()
+
         while self.core.current_player_idx != 0:
             self.__simulate_next_opponent()
 

@@ -12,10 +12,12 @@ from test.utils import c, cl
 
 
 def get_sample_env(reward_setting: Literal['dense', 'sparse'] = 'dense',
+                   card_passing_callbacks=None,
                    ) -> tuple[HeartsPlayEnvironment, ObsType]:
     env = HeartsPlayEnvironment(
         opponents_callbacks=MagicMock(),
         reward_setting=reward_setting,
+        card_passing_callbacks=card_passing_callbacks,
     )
     obs_reset, _ = env.reset(seed=28)
     return env, obs_reset
@@ -203,3 +205,18 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         self.assertTrue(action_masks[card_to_idx(c('3♣'))])
         self.assertFalse(action_masks[card_to_idx(c('5♠'))])
         self.assertFalse(action_masks[card_to_idx(c('Q♥'))])
+
+    @patch.multiple(
+        HeartsCore,
+        current_player_idx=0,
+    )
+    @patch('hearts_ai.engine.HeartsCore.complete_pass_cards')
+    @patch('hearts_ai.engine.HeartsCore.pick_cards_to_pass')
+    def test_card_passing(
+            self,
+            mock_pick_cards_to_pass: MagicMock,
+            mock_complete_pass_cards: MagicMock,
+    ):
+        env, _ = get_sample_env(card_passing_callbacks=lambda *args: 0)
+        mock_complete_pass_cards.assert_called_once()
+        self.assertEqual(4, mock_pick_cards_to_pass.call_count)
