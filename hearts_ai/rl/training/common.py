@@ -1,9 +1,9 @@
 import os
 import time
+from datetime import datetime
 from typing import TypeVar
 
 import numpy as np
-import pandas as pd
 from gymnasium.core import ObsType, ActType
 from sb3_contrib import MaskablePPO
 from stable_baselines3.common.callbacks import BaseCallback
@@ -21,6 +21,11 @@ SupportedEnvironment = TypeVar(
     HeartsPlayEnvironment,
     HeartsCardsPassEnvironment,
 )
+
+
+def print_start_training_info(steps_per_stage: np.ndarray):
+    print(f'The training starts at {datetime.now().strftime("%H:%M")}')
+    print(f'It will take {int(np.sum(steps_per_stage))} steps in total')
 
 
 def clone_agent(agent: SupportedAlgorithm) -> SupportedAlgorithm:
@@ -74,15 +79,11 @@ class SaveAllRewards(BaseCallback):
 
     def _on_training_end(self):
         if self.folder is not None:
-            df = pd.DataFrame({'reward': self.rewards_all})
-            df = df \
-                .reset_index() \
-                .rename(columns={'index': 'step'})
-            df['step'] += 1
+            rewards_all_arr = np.array(self.rewards_all)
 
-            # make the step absolute
-            step_offset = self.num_timesteps - len(df)
-            df['step'] += step_offset
+            step_offset = self.num_timesteps - len(rewards_all_arr)
+            steps_arr = np.arange(step_offset, step_offset + len(rewards_all_arr), dtype=int)
 
-            save_path = os.path.join(self.folder, 'rewards_all.csv')
-            df.to_csv(save_path, index=False)
+            os.makedirs(self.folder, exist_ok=True)
+            save_path = os.path.join(self.folder, 'rewards_all.npz')
+            np.savez(save_path, steps=steps_arr, rewards_all=rewards_all_arr)

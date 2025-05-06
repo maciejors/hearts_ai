@@ -41,9 +41,13 @@ def _load_all_training_rewards(log_path: str) -> pd.DataFrame:
             continue
 
         stage_no = int(stage_subdir.split('_')[-1])
-        stage_rewards_df = pd.read_csv(
-            os.path.join(log_path, stage_subdir, 'rewards_all.csv')
+        loaded_arr = np.load(
+            os.path.join(log_path, stage_subdir, 'rewards_all.npz')
         )
+        stage_rewards_df = pd.DataFrame({
+            'step': loaded_arr['steps'],
+            'reward': loaded_arr['rewards_all'],
+        })
         stage_rewards_df['stage'] = stage_no
 
         all_dfs.append(stage_rewards_df)
