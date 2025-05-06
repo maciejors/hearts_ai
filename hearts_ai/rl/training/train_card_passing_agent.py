@@ -94,7 +94,12 @@ def train_card_passing_agent(
     if agent_cls == MaskablePPO:
         n_steps = 1536  # multiple of 192 = 64 * 3 (batch_size * episode_length)
         print(f'PPO agent will update every {n_steps // ep_length} episodes')
-        agent = MaskablePPO('MlpPolicy', env, n_steps=n_steps, seed=get_seed())
+        agent = MaskablePPO(
+            'MlpPolicy', env,
+            n_steps=n_steps,
+            stats_window_size=200,
+            seed=get_seed(),
+        )
     else:
         raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
 

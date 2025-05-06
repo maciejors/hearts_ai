@@ -1,4 +1,6 @@
+import functools
 import os
+from abc import ABC
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -6,108 +8,184 @@ import seaborn as sns
 from .training_results import TrainingResults
 
 
-class PlotMakerIndividualResults:
+def plot_wrapper(
+        *,
+        fig_id: str,
+        fig_title: str,
+        xlabel: str,
+        ylabel: str,
+):
     """
-    All-in-one tool for visualising results of a single training process
+    A decorator for all plots
 
+    Features:
+    - Automatically supply ``ax`` parameter to the method as the first parameter
+    - Save/show figure based on PlotMaker settings
+    - Add labels for axes
+    """
+
+    def decorator(method):
+        @functools.wraps(method)
+        def wrapper(self: PlotMaker, *args, **kwargs):
+            fig, ax = plt.subplots(figsize=(12, 5))
+
+            result = method(self, ax, *args, **kwargs)
+
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            fig.tight_layout()
+            if self.folder:
+                fig.savefig(os.path.join(self.folder, f'{fig_id}.png'))
+            if self.show:
+                ax.set_title(fig_title)
+                plt.show()
+
+            return result
+
+        return wrapper
+
+    return decorator
+
+
+class PlotMaker(ABC):
+    """
     Args:
         results: Training results to visualise
         folder: A directory where the plots will be saved. Set to ``None``
             to disable saving
         show: Whether or not to call plt.show() for each plot
     """
-
     def __init__(
             self,
             results: TrainingResults,
             folder: str | None,
             show: bool = False
     ):
-        self._r = results
-        self._folder = folder
-        self._show = show
+        self.r = results
+        self.folder = folder
+        self.show = show
 
-        if self._folder is not None:
-            os.makedirs(self._folder, exist_ok=True)
+        if self.folder is not None:
+            os.makedirs(self.folder, exist_ok=True)
 
-    @staticmethod
-    def __get_default_subplots() -> tuple[plt.Figure, plt.Axes]:
-        return plt.subplots(figsize=(15, 5))
 
-    def __handle_ready_plot(
-            self,
-            fig: plt.Figure,
-            ax: plt.Axes,
-            fig_id: str,
-            fig_title: str,
-    ):
-        fig.tight_layout()
+class PlotMakerIndividualResults(PlotMaker):
+    """
+    All-in-one tool for visualising results of a single training process
+    """
 
-        if self._folder:
-            fig.savefig(os.path.join(self._folder, f'{fig_id}.png'))
+    def _add_stages_ends_lines(self, ax: plt.Axes):
+        for stage_end_step in self.r.stages_ends[:-1]:
+            ax.axvline(
+                x=stage_end_step,
+                linestyle='--',
+                color='black',
+                linewidth=0.5,
+            )
 
-        if self._show:
-            ax.set_title(fig_title)
-            plt.show()
-
-    def _plot_training_rewards(self):
-        fig, ax = self.__get_default_subplots()
+    @plot_wrapper(
+        fig_id='training_rewards',
+        fig_title='Training rewards',
+        xlabel='Step',
+        ylabel='Reward (rolling mean)',
+    )
+    def _plot_training_rewards(self, ax: plt.Axes):
         sns.lineplot(
             ax=ax,
-            data=self._r.training_logs_df,
+            data=self.r.training_logs_df,
             x='timestep',
             y='ep_rew_mean',
-            hue='stage'
+            hue='stage',
+            palette='Blues_d',
         )
-        ax.set_xlabel('Step')
-        ax.set_ylabel('Reward (rolling mean)')
-        self.__handle_ready_plot(
-            fig, ax, 'training_rewards', 'Training rewards'
-        )
+        ax.grid(axis='y')
 
-    def _plot_evaluation_results_boxplot(self):
-        fig, ax = self.__get_default_subplots()
-        sns.boxplot(
-            ax=ax,
-            data=self._r.eval_results_df,
-            x='train_timestep',
-            y='reward',
-        )
-        ax.set_xlabel('Training timestep')
-        ax.set_ylabel('Evaluation rewards')
-        self.__handle_ready_plot(
-            fig, ax, 'evaluation_rewards_boxplot', 'Evaluation rewards'
-        )
-
-    def _plot_evaluation_results_mean_line(self):
-        mean_eval_df = self._r.eval_results_df \
+    @plot_wrapper(
+        fig_id='eval_points_mean',
+        fig_title='Mean points scored in evaluations',
+        xlabel='Training timestep',
+        ylabel='Mean points scored',
+    )
+    def _plot_eval_results_mean(self, ax: plt.Axes):
+        mean_eval_df = self.r.eval_results_df \
             .groupby('train_timestep') \
             .mean() \
             .reset_index()
-        mean_eval_df = mean_eval_df[['train_timestep', 'reward']]
+        mean_eval_df = mean_eval_df[['train_timestep', 'points']]
 
-        fig, ax = self.__get_default_subplots()
         sns.lineplot(
             ax=ax,
             data=mean_eval_df,
             x='train_timestep',
-            y='reward',
+            y='points',
+            marker='o',
         )
-        sns.scatterplot(
+        ax.grid(axis='y')
+        self._add_stages_ends_lines(ax)
+
+    @plot_wrapper(
+        fig_id='eval_rounds_with_ge13',
+        fig_title='Rounds with score >= 13pts in evaluations',
+        xlabel='Training timestep',
+        ylabel='# of rounds with >=13 pts',
+    )
+    def _plot_eval_rounds_with_ge13(self, ax: plt.Axes):
+        df = self.r.eval_results_df \
+            .assign(is_pts_ge13=lambda x: x['points'] >= 13)
+        df = df.groupby('train_timestep').sum().reset_index()
+        sns.lineplot(
             ax=ax,
-            data=mean_eval_df,
+            data=df,
             x='train_timestep',
-            y='reward',
-            s=50,
-            marker='o'
+            y='is_pts_ge13',
+            marker='o',
         )
-        ax.set_xlabel('Training timestep')
-        ax.set_ylabel('Mean evaluation reward')
-        self.__handle_ready_plot(
-            fig, ax, 'evaluation_rewards_mean_line', 'Evaluation rewards'
+        ax.grid(axis='y')
+        self._add_stages_ends_lines(ax)
+
+    @plot_wrapper(
+        fig_id='eval_moon_shots_success',
+        fig_title='Successful moon shots in evaluations',
+        xlabel='Training timestep',
+        ylabel='# of successful moon shots',
+    )
+    def _plot_eval_successful_moon_shots(self, ax: plt.Axes):
+        df = self.r.eval_results_df \
+            .assign(is_agent_moon_shot=lambda x: x['points'] == -26)
+        df = df.groupby('train_timestep').sum().reset_index()
+        sns.lineplot(
+            ax=ax,
+            data=df,
+            x='train_timestep',
+            y='is_agent_moon_shot',
+            marker='o',
         )
+        ax.grid(axis='y')
+        self._add_stages_ends_lines(ax)
+
+    @plot_wrapper(
+        fig_id='eval_moon_shots_against',
+        fig_title='Moon shots against in evaluations',
+        xlabel='Training timestep',
+        ylabel='# of moon shots against',
+    )
+    def _plot_eval_moon_shots_against(self, ax: plt.Axes):
+        df = self.r.eval_results_df \
+            .assign(is_opponent_moon_shot=lambda x: x['points'] == 26)
+        df = df.groupby('train_timestep').sum().reset_index()
+        sns.lineplot(
+            ax=ax,
+            data=df,
+            x='train_timestep',
+            y='is_opponent_moon_shot',
+            marker='o',
+        )
+        ax.grid(axis='y')
+        self._add_stages_ends_lines(ax)
 
     def plot_all(self):
         self._plot_training_rewards()
-        self._plot_evaluation_results_boxplot()
-        self._plot_evaluation_results_mean_line()
+        self._plot_eval_results_mean()
+        self._plot_eval_rounds_with_ge13()
+        self._plot_eval_successful_moon_shots()
+        self._plot_eval_moon_shots_against()
