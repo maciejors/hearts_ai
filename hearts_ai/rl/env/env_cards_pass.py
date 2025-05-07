@@ -180,10 +180,6 @@ class HeartsCardsPassEnvironment(gym.Env):
             pts_with_passing: np.ndarray,
             pts_no_passing: np.ndarray,
     ):
-        print(pts_with_passing)
-        print(pts_no_passing)
-        print()
-
         for i, pts in enumerate([pts_with_passing, pts_no_passing]):
             if np.all(pts == pts[0]):
                 self.__times_consecutive_eval_identical[i] += 1
