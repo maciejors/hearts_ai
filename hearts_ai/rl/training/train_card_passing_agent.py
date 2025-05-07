@@ -11,9 +11,11 @@ from stable_baselines3.common.monitor import Monitor
 
 from hearts_ai.rl.env import HeartsCardsPassEnvironment
 from .common import (
+    print_start_training_info,
     SupportedAlgorithm,
     update_self_play_clones,
-    SaveAllRewards, get_random_action_taking_callback,
+    SaveAllRewards,
+    get_random_action_taking_callback,
 )
 
 
@@ -123,6 +125,7 @@ def train_card_passing_agent(
     )
 
     steps_per_stage = np.array(stages_lengths_episodes) * ep_length
+    print_start_training_info(steps_per_stage)
 
     for stage_no, total_timesteps in enumerate(steps_per_stage.tolist(), 1):
         update_self_play_clones(env, agent)

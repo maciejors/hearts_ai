@@ -50,7 +50,7 @@ class HeartsPlayEnvironment(gym.Env):
     this into account and when evaluating, determinisation techniques need
     to be used.
 
-    There are three reward settings: sparse, dense, and eval. In the sparse
+    There are four reward settings: sparse, dense, and binary. In the sparse
     reward setting, a reward is only given at the end of a round. This reward
     is calculated as the negative of the number of points received after
     the round, or, if the agent has shot the moon, the reward is set to 26.
@@ -63,8 +63,8 @@ class HeartsPlayEnvironment(gym.Env):
     of points collected in that trick, and if another player has shot the moon,
     the reward is -26.
 
-    The last reward setting, "eval", is identical to sparse. It is designed as
-    separate in case there is a need to make it different.
+    The last reward setting, binary, is 1 if the agent has won the round, and
+    0 if it has not won it, irrespective of the number of points scored
 
     Args:
         opponents_callbacks: Callbacks responsible for decision making of other
@@ -73,8 +73,7 @@ class HeartsPlayEnvironment(gym.Env):
             3 functions, each one accepting a state and an action mask, and
             returning an action. Alternatively it could also be a single object,
             in which case it will be shared for all opponents.
-        reward_setting: Whether to use the sparse or dense reward setting.
-            Default: dense
+        reward_setting: The reward setting to use.
         card_passing_callbacks: Callbacks responsible for picking the cards to
             pass before each round. If set to ``None``, card passing will be
             disabled during training. It is useful to set this callback when
@@ -84,7 +83,7 @@ class HeartsPlayEnvironment(gym.Env):
     def __init__(
             self,
             opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
-            reward_setting: Literal['dense', 'sparse', 'eval'] = 'dense',
+            reward_setting: Literal['dense', 'sparse', 'binary'],
             card_passing_callbacks: ActionTakingCallbackParam[
                                         CardPassEnvObsType, CardPassEnvActType] | None = None,
     ):
@@ -92,7 +91,7 @@ class HeartsPlayEnvironment(gym.Env):
 
         self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
 
-        allowed_reward_settings = ['dense', 'sparse', 'eval']
+        allowed_reward_settings = ['dense', 'sparse', 'binary']
         if reward_setting not in allowed_reward_settings:
             raise ValueError(f'Invalid `reward_setting`: "{reward_setting}". '
                              f'Accepted values: {allowed_reward_settings}.')
@@ -157,7 +156,7 @@ class HeartsPlayEnvironment(gym.Env):
         return self._get_obs(), {}
 
     @staticmethod
-    def _calculate_dense_reward(
+    def _calculate_reward_dense(
             is_round_finished: bool,
             current_round_points_collected: list[int],
             trick_points: int,
@@ -175,7 +174,7 @@ class HeartsPlayEnvironment(gym.Env):
         return reward
 
     @staticmethod
-    def _calculate_sparse_reward(
+    def _calculate_reward_sparse(
             is_round_finished: bool,
             current_round_points_collected: list[int]
     ) -> int:
@@ -188,13 +187,15 @@ class HeartsPlayEnvironment(gym.Env):
         return -current_round_points_collected[0]
 
     @staticmethod
-    def _calculate_eval_reward(
+    def _calculate_reward_binary(
             is_round_finished: bool,
-            current_round_points_collected: list[int]
+            current_round_scores: list[int]
     ) -> int:
-        return HeartsPlayEnvironment._calculate_sparse_reward(
-            is_round_finished, current_round_points_collected,
-        )
+        if not is_round_finished:
+            return 0
+        if min(current_round_scores) == current_round_scores[0]:
+            return 1
+        return 0
 
     def step(
             self, action: ActType
@@ -215,29 +216,35 @@ class HeartsPlayEnvironment(gym.Env):
 
         # calculate the reward
         if self.reward_setting == 'sparse':
-            reward = HeartsPlayEnvironment._calculate_sparse_reward(
+            reward = HeartsPlayEnvironment._calculate_reward_sparse(
                 self.core.is_round_finished,
                 self.core.current_round_points_collected
             )
         elif self.reward_setting == 'dense':
-            reward = HeartsPlayEnvironment._calculate_dense_reward(
+            reward = HeartsPlayEnvironment._calculate_reward_dense(
                 self.core.is_round_finished,
                 self.core.current_round_points_collected,
                 trick_points,
                 trick_winner_idx == 0
             )
-        else:  # eval
-            reward = HeartsPlayEnvironment._calculate_eval_reward(
+        else:  # binary
+            reward = HeartsPlayEnvironment._calculate_reward_binary(
                 self.core.is_round_finished,
-                self.core.current_round_points_collected,
+                self.core.current_round_scores,
             )
 
         is_round_finished = self.core.is_round_finished
+        info = {}
+
         if not is_round_finished:
             while self.core.current_player_idx != 0:
                 self.__simulate_next_opponent()
+        else:
+            scores = self.core.current_round_scores
+            is_success = min(scores) == scores[0]
+            info['is_success'] = is_success
 
-        return self._get_obs(), reward, is_round_finished, False, {}
+        return self._get_obs(), reward, is_round_finished, False, info
 
     def action_masks(self) -> list[bool]:
         return create_play_env_action_masks_from_hearts_core(self.core)

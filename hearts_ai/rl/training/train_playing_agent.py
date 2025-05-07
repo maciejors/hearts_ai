@@ -100,11 +100,15 @@ def train_playing_agent(
 
     os.makedirs(log_path, exist_ok=True)
 
-    env_eval_random = Monitor(HeartsPlayEnvironment(
-        opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
-                             for _ in range(3)],
-        reward_setting='eval',
-    ))
+    # sparse setting, because we only care about the end-of-round score
+    env_eval_random = Monitor(
+        HeartsPlayEnvironment(
+            opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
+                                 for _ in range(3)],
+            reward_setting='sparse',
+        ),
+        info_keywords=("is_success",),
+    )
     env_eval_random.reset(seed=get_seed())
 
     eval_log_path = os.path.join(log_path, 'eval')

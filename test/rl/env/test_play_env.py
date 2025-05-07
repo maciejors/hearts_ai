@@ -11,7 +11,7 @@ from hearts_ai.rl.env.utils import card_to_idx
 from test.utils import c, cl
 
 
-def get_sample_env(reward_setting: Literal['dense', 'sparse', 'eval'] = 'dense',
+def get_sample_env(reward_setting: Literal['dense', 'sparse', 'binary'] = 'dense',
                    card_passing_callbacks=None,
                    ) -> tuple[HeartsPlayEnvironment, ObsType]:
     env = HeartsPlayEnvironment(
@@ -197,12 +197,12 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         HeartsCore,
         **get_mock_params_allowing_step(),
         complete_trick=get_mock_complete_trick_14p(),
-        current_round_scores=[14, 3, 3, 6],
+        current_round_scores=[0, 14, 3, 6],
     )
-    def test_eval_reward_zero_mid_game(self):
-        env, _ = get_sample_env('eval')
+    def test_binary_reward_zero_mid_game(self):
+        env, _ = get_sample_env('binary')
         _, reward, _, _, _ = env.step(0)
-        self.assertEqual(0, reward, 'Eval reward should be 0 mid-round')
+        self.assertEqual(0, reward, 'Binary reward should be 0 mid-round')
 
     @patch.multiple(
         HeartsCore,
@@ -211,11 +211,50 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         current_round_scores=[14, 3, 3, 6],
         is_round_finished=True,
     )
-    def test_eval_reward_regular_end_of_round(self):
-        env, _ = get_sample_env('eval')
+    def test_binary_reward_zero_loss(self):
+        env, _ = get_sample_env('binary')
         _, reward, _, _, _ = env.step(0)
-        self.assertEqual(-14, reward,
-                         "Eval reward should reflect agent's score at the end of round")
+        self.assertEqual(0, reward,
+                         'Binary reward should be 0 when agent is not the winner of a round')
+
+    @patch.multiple(
+        HeartsCore,
+        **get_mock_params_allowing_step(),
+        complete_trick=get_mock_complete_trick_14p(),
+        current_round_scores=[3, 3, 14, 6],
+        is_round_finished=True,
+    )
+    def test_binary_reward_one_win(self):
+        env, _ = get_sample_env('binary')
+        _, reward, _, _, _ = env.step(0)
+        self.assertEqual(1, reward,
+                         'Binary reward should be 1 when agent has the lowest score')
+
+    @patch.multiple(
+        HeartsCore,
+        **get_mock_params_allowing_step(),
+        complete_trick=get_mock_complete_trick_14p(),
+        current_round_scores=[14, 3, 3, 6],
+        is_round_finished=True,
+    )
+    def test_is_success_loss(self):
+        env, _ = get_sample_env()
+        _, _, _, _, info = env.step(0)
+        self.assertFalse(info['is_success'],
+                         'is_success should be False when agent is not the winner of a round')
+
+    @patch.multiple(
+        HeartsCore,
+        **get_mock_params_allowing_step(),
+        complete_trick=get_mock_complete_trick_14p(),
+        current_round_scores=[3, 3, 14, 6],
+        is_round_finished=True,
+    )
+    def test_is_success_win(self):
+        env, _ = get_sample_env()
+        _, _, _, _, info = env.step(0)
+        self.assertTrue(info['is_success'],
+                        'is_success should be True when agent has the lowest score')
 
     @patch.multiple(
         HeartsCore,

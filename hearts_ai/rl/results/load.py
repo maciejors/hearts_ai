@@ -14,21 +14,25 @@ def _load_eval_results(log_path: str) -> pd.DataFrame:
     train_timestep_col = []
     eval_episode_no_col = []
     points_col = []
+    is_success_col = []
 
     for eval_id, train_timestep in enumerate(eval_results['timesteps']):
         episodes_points = -eval_results['results'][eval_id].astype(int)
+        episodes_successes = eval_results['successes'][eval_id]
         n_episodes = len(episodes_points)
 
         eval_no_col.extend([eval_id + 1] * n_episodes)
         train_timestep_col.extend([train_timestep] * n_episodes)
         eval_episode_no_col.extend([i + 1 for i in range(n_episodes)])
         points_col.extend(episodes_points)
+        is_success_col.extend(episodes_successes)
 
     eval_results_df = pd.DataFrame({
         'eval_no': eval_no_col,
         'train_timestep': train_timestep_col,
         'eval_episode': eval_episode_no_col,
         'points': points_col,
+        'is_success': is_success_col,
     })
     return eval_results_df
 
@@ -80,6 +84,7 @@ def _load_training_logs(log_path: str) -> tuple[pd.DataFrame, list[int]]:
             'fps': raw_logs_df['time/fps'],
             'timestep': raw_logs_df['time/total_timesteps'],
             'ep_rew_mean': raw_logs_df['rollout/ep_rew_mean'],
+            'success_rate': raw_logs_df['rollout/success_rate'],
         })
         stage_training_logs_df['stage'] = stage_no
         stage_training_logs_df['episode'] = stage_training_logs_df['timestep'] // ep_length
