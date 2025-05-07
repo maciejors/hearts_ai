@@ -4,11 +4,9 @@ from datetime import datetime
 from typing import TypeVar
 
 import numpy as np
-from gymnasium.core import ObsType, ActType
 from sb3_contrib import MaskablePPO
 
 from hearts_ai.rl.env import HeartsPlayEnvironment, HeartsCardsPassEnvironment
-from hearts_ai.rl.env.utils import ActionTakingCallback
 
 SupportedAlgorithm = TypeVar(
     'SupportedAlgorithm',
@@ -42,13 +40,3 @@ def update_self_play_clones(env: SupportedEnvironment, agent: SupportedAlgorithm
         for _ in range(3)
     ]
     env.opponents_callbacks = opponents_callbacks
-
-
-def get_random_action_taking_callback(random_state: int) -> ActionTakingCallback:
-    rng = np.random.default_rng(random_state)
-
-    def callback(_: ObsType, action_masks: list[bool]) -> ActType:
-        legal_actions = np.flatnonzero(np.array(action_masks))
-        return rng.choice(legal_actions)
-
-    return callback

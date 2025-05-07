@@ -10,11 +10,13 @@ from stable_baselines3.common.logger import configure as configure_sb3logger
 from stable_baselines3.common.monitor import Monitor
 
 from hearts_ai.rl.env import HeartsPlayEnvironment
+from hearts_ai.rl.env.opponents_callbacks import (
+    get_random_action_taking_callback
+)
 from .common import (
     print_start_training_info,
     SupportedAlgorithm,
     update_self_play_clones,
-    get_random_action_taking_callback,
 )
 
 
