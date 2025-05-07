@@ -14,7 +14,6 @@ from .common import (
     print_start_training_info,
     SupportedAlgorithm,
     update_self_play_clones,
-    SaveAllRewards,
     get_random_action_taking_callback,
 )
 
@@ -132,12 +131,10 @@ def train_playing_agent(
         agent.set_logger(logger)
 
         log_callback = LogEveryNTimesteps(1)
-        save_all_rewards_callback = SaveAllRewards(log_subpath)
 
         callbacks = CallbackList([
             eval_random_callback,
             log_callback,
-            save_all_rewards_callback,
         ])
 
         agent.learn(

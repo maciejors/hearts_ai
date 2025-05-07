@@ -37,29 +37,6 @@ def _load_eval_results(log_path: str) -> pd.DataFrame:
     return eval_results_df
 
 
-def _load_all_training_rewards(log_path: str) -> pd.DataFrame:
-    all_dfs = []
-
-    for stage_subdir in os.listdir(log_path):
-        if not stage_subdir.startswith('stage_'):
-            continue
-
-        stage_no = int(stage_subdir.split('_')[-1])
-        loaded_arr = np.load(
-            os.path.join(log_path, stage_subdir, 'rewards_all.npz')
-        )
-        stage_rewards_df = pd.DataFrame({
-            'step': loaded_arr['steps'],
-            'reward': loaded_arr['rewards_all'],
-        })
-        stage_rewards_df['stage'] = stage_no
-
-        all_dfs.append(stage_rewards_df)
-
-    all_rewards_df = pd.concat(all_dfs, ignore_index=True)
-    return all_rewards_df
-
-
 def _load_training_logs(log_path: str) -> tuple[pd.DataFrame, list[int]]:
     all_dfs = []
 
@@ -103,12 +80,13 @@ def _load_training_logs(log_path: str) -> tuple[pd.DataFrame, list[int]]:
 
 def load_training_results(log_path: str) -> TrainingResults:
     """
-    Loads all results in order: Evaluation results, All training rewards, Training logs
+    Loads all results from a single training process
     """
     training_logs_df, stages_ends = _load_training_logs(log_path)
+    eval_results_df = _load_eval_results(log_path)
 
     return TrainingResults(
-        eval_results_df=_load_eval_results(log_path),
+        eval_results_df=eval_results_df,
         training_logs_df=training_logs_df,
         stages_ends=stages_ends,
     )

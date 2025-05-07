@@ -6,7 +6,6 @@ from typing import TypeVar
 import numpy as np
 from gymnasium.core import ObsType, ActType
 from sb3_contrib import MaskablePPO
-from stable_baselines3.common.callbacks import BaseCallback
 
 from hearts_ai.rl.env import HeartsPlayEnvironment, HeartsCardsPassEnvironment
 from hearts_ai.rl.env.utils import ActionTakingCallback
@@ -53,37 +52,3 @@ def get_random_action_taking_callback(random_state: int) -> ActionTakingCallback
         return rng.choice(legal_actions)
 
     return callback
-
-
-class SaveAllRewards(BaseCallback):
-    """
-    A stable baselines 3 callack which saves all individual obtained rewards
-    into a ``rewards_all.csv`` file after training.
-
-    Args:
-        folder: Folder where the file will be saved. It is recommended to use
-            the same folder as for SB3 logging
-    """
-
-    def __init__(self, folder: str | None = None):
-        super().__init__()
-        self.rewards_all = []
-        self.folder = folder
-        if folder is not None:
-            os.makedirs(folder, exist_ok=True)
-
-    def _on_step(self):
-        last_reward = self.locals['rewards'][0]  # 'rewards' is a one-element array
-        self.rewards_all.append(last_reward)
-        return True
-
-    def _on_training_end(self):
-        if self.folder is not None:
-            rewards_all_arr = np.array(self.rewards_all)
-
-            step_offset = self.num_timesteps - len(rewards_all_arr)
-            steps_arr = np.arange(step_offset, step_offset + len(rewards_all_arr), dtype=int)
-
-            os.makedirs(self.folder, exist_ok=True)
-            save_path = os.path.join(self.folder, 'rewards_all.npz')
-            np.savez(save_path, steps=steps_arr, rewards_all=rewards_all_arr)
