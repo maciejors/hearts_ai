@@ -2,6 +2,7 @@ numpy
 pandas
 matplotlib
 seaborn
+torch
 tqdm
 gymnasium
 stable-baselines3[extra]
