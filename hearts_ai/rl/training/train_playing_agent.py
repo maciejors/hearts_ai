@@ -25,8 +25,8 @@ def train_playing_agent(
         env_kwargs: dict,
         log_path: str,
         stages_lengths_episodes: list[int],
-        eval_freq_episodes: int = 200,
-        n_eval_episodes: int = 250,
+        eval_freq_episodes: int = 10000,
+        n_eval_episodes: int = 10000,
         progress_bar: bool = False,
         random_state: int | None = None,
 ) -> SupportedAlgorithm:
@@ -60,6 +60,7 @@ def train_playing_agent(
         >>>     log_path='training_logs',
         >>>     stages_lengths_episodes=[192*10, 192*10, 192*20, 192*25],
         >>>     eval_freq_episodes=200,
+        >>>     n_eval_episodes=400,
         >>>     progress_bar=True,
         >>>     random_state=42,
         >>> )
@@ -93,7 +94,7 @@ def train_playing_agent(
         agent = MaskablePPO(
             'MlpPolicy', env,
             n_steps=n_steps,
-            stats_window_size=1000,
+            stats_window_size=2000,
             seed=get_seed(),
         )
     else:
@@ -125,6 +126,8 @@ def train_playing_agent(
     print_start_training_info(steps_per_stage)
 
     for stage_no, total_timesteps in enumerate(steps_per_stage.tolist(), 1):
+        print(f'Beginning stage {stage_no} out of {len(steps_per_stage)}')
+
         update_self_play_clones(env, agent)
         env.reset(seed=get_seed())
 
