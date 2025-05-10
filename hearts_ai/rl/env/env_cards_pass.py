@@ -227,7 +227,7 @@ class HeartsCardsPassEnvironment(gym.Env):
             self.__handle_deterministic_eval_check(pts_with_passing, pts_no_passing)
 
         reward = pts_with_passing.mean() - pts_no_passing.mean()
-        return self._get_obs(), reward, True, False, {}
+        return self._get_obs(), reward, True, False, {'is_success': reward > 0}
 
     def action_masks(self) -> list[bool]:
         return create_cards_pass_env_action_masks(self.hands[0], self.picked_cards)
