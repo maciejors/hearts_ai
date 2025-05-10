@@ -109,12 +109,14 @@ def train_card_passing_agent(
     os.makedirs(log_path, exist_ok=True)
 
     # in evaluation we are only concerned about the end result of the round, hence the sparse setting.
-    env_eval_random = Monitor(HeartsCardsPassEnvironment(
-        opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
-                             for _ in range(3)],
-        playing_callbacks=playing_callback,
+    env_eval_random = Monitor(
+        HeartsCardsPassEnvironment(
+            opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
+                                for _ in range(3)],
+            playing_callbacks=playing_callback,
+        ),
         info_keywords=("is_success",),
-    ))
+    )
     env_eval_random.reset(seed=get_seed())
 
     eval_log_path = os.path.join(log_path, 'eval')
