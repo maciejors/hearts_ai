@@ -7,7 +7,7 @@ import seaborn as sns
 
 from .training_results import TrainingResults
 
-sns.set_palette('Set2')
+sns.set_palette('colorblind')
 
 
 def plot_wrapper(
