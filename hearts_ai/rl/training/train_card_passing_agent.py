@@ -113,6 +113,7 @@ def train_card_passing_agent(
         opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
                              for _ in range(3)],
         playing_callbacks=playing_callback,
+        info_keywords=("is_success",),
     ))
     env_eval_random.reset(seed=get_seed())
 
