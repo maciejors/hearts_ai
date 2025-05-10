@@ -26,8 +26,8 @@ def train_card_passing_agent(
         env_kwargs: dict,
         log_path: str,
         stages_lengths_episodes: list[int],
-        eval_freq_episodes: int = 600,
-        n_eval_episodes: int = 500,
+        eval_freq_episodes: int = 1500,
+        n_eval_episodes: int = 100,
         progress_bar: bool = False,
         random_state: int | None = None,
 ) -> SupportedAlgorithm:
