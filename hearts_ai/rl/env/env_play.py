@@ -45,12 +45,12 @@ class HeartsPlayEnvironment(gym.Env):
         209-212: One-hot vector specifying the leading suit in this trick
         213-216: Current round score of each player (agent, left, across, right)
 
-    Note that for some observation space types the environment provides
+    Note that the environment provides
     information on cards that each player has. The algorithms need to take
     this into account and when evaluating, determinisation techniques need
     to be used.
 
-    There are four reward settings: sparse, dense, and binary. In the sparse
+    There are three reward settings: sparse, dense, and binary. In the sparse
     reward setting, a reward is only given at the end of a round. This reward
     is calculated as the negative of the number of points received after
     the round, or, if the agent has shot the moon, the reward is set to 26.

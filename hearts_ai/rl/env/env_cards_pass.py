@@ -33,11 +33,6 @@ class HeartsCardsPassEnvironment(gym.Env):
     Each observation is a vector of length 52, encoding agent's relation to
     each card (-1: picked to pass / 0: not in hand / 1: in hand)
 
-    Note that for some observation space types the environment provides
-    information on cards that each player has. The algorithms need to take
-    this into account and when evaluating, determinisation techniques need
-    to be used.
-
     Agent picks cards one by one, and once the third card is picked, the
     agent receives a reward and the environment terminates. The reward is
     calculated as the average gain in points collected across simulated rounds.
