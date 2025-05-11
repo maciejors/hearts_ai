@@ -130,6 +130,27 @@ class PlotMaker(ABC):
         )
         ax.grid(axis='y')
 
+    @plot_wrapper(
+        fig_id='training_success_rate',
+        fig_title='Training success rate',
+        xlabel='Step',
+        ylabel='Success rate (%, rolling mean)',
+    )
+    def _plot_training_success_rate(self, ax: plt.Axes):
+        df = self._combined_training_logs_df \
+            .assign(success_perc=lambda x: x['success_rate'] * 100)
+        sns.lineplot(
+            ax=ax,
+            data=df,
+            x='timestep',
+            y='success_perc',
+            hue='model',
+        )
+        ax.grid(axis='y')
+
+    def plot_training(self):
+        self._plot_training_rewards()
+        self._plot_training_success_rate()
 
 
 class PlotMakerPlaying(PlotMaker):
@@ -253,9 +274,6 @@ class PlotMakerPlaying(PlotMaker):
         )
         ax.grid(axis='y')
 
-    def plot_training(self):
-        self._plot_training_rewards()
-
     def plot_eval(self):
         self._plot_eval_results_mean()
         self._plot_eval_success_rate_mean()
@@ -316,9 +334,6 @@ class PlotMakerCardPassing(PlotMaker):
             marker='o',
         )
         ax.grid(axis='y')
-    
-    def plot_training(self):
-        self._plot_training_rewards()
 
     def plot_eval(self):
         self._plot_eval_results_mean()
