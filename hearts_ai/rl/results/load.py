@@ -17,14 +17,14 @@ def _load_eval_results(log_path: str) -> pd.DataFrame:
     is_success_col = []
 
     for eval_id, train_timestep in enumerate(eval_results['timesteps']):
-        episodes_points = -eval_results['results'][eval_id].astype(int)
+        episodes_rewards = eval_results['results'][eval_id].astype(int)
         episodes_successes = eval_results['successes'][eval_id]
-        n_episodes = len(episodes_points)
+        n_episodes = len(episodes_rewards)
 
         eval_no_col.extend([eval_id + 1] * n_episodes)
         train_timestep_col.extend([train_timestep] * n_episodes)
         eval_episode_no_col.extend([i + 1 for i in range(n_episodes)])
-        reward_col.extend(episodes_points)
+        reward_col.extend(episodes_rewards)
         is_success_col.extend(episodes_successes)
 
     eval_results_df = pd.DataFrame({
