@@ -13,7 +13,7 @@ def _load_eval_results(log_path: str) -> pd.DataFrame:
     eval_no_col = []
     train_timestep_col = []
     eval_episode_no_col = []
-    points_col = []
+    reward_col = []
     is_success_col = []
 
     for eval_id, train_timestep in enumerate(eval_results['timesteps']):
@@ -24,14 +24,14 @@ def _load_eval_results(log_path: str) -> pd.DataFrame:
         eval_no_col.extend([eval_id + 1] * n_episodes)
         train_timestep_col.extend([train_timestep] * n_episodes)
         eval_episode_no_col.extend([i + 1 for i in range(n_episodes)])
-        points_col.extend(episodes_points)
+        reward_col.extend(episodes_points)
         is_success_col.extend(episodes_successes)
 
     eval_results_df = pd.DataFrame({
         'eval_no': eval_no_col,
         'train_timestep': train_timestep_col,
         'eval_episode': eval_episode_no_col,
-        'points': points_col,
+        'reward': reward_col,
         'is_success': is_success_col,
     })
     return eval_results_df

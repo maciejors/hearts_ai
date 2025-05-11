@@ -1,5 +1,6 @@
 import functools
 import os
+from abc import ABC
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -28,7 +29,7 @@ def plot_wrapper(
 
     def decorator(method):
         @functools.wraps(method)
-        def wrapper(self: 'PlotMaker', *args, **kwargs):
+        def wrapper(self: 'PlotMakerPlaying', *args, **kwargs):
             fig, ax = plt.subplots(figsize=(12, 5))
 
             result = method(self, ax, *args, **kwargs)
@@ -63,9 +64,10 @@ def plot_wrapper(
     return decorator
 
 
-class PlotMaker:
+class PlotMaker(ABC):
     """
-    All-in-one tool for visualising results of multiple training processes
+    All-in-one tool for visualising results of multiple training processes.
+    Makes plots shared by playing and passing agents.
 
     Args:
         results: Training results to visualise. Can be a single object or
@@ -128,6 +130,14 @@ class PlotMaker:
         )
         ax.grid(axis='y')
 
+
+
+class PlotMakerPlaying(PlotMaker):
+    """
+    All-in-one tool for visualising results of multiple training processes
+    of a playing agent
+    """
+
     @plot_wrapper(
         fig_id='eval_points_mean',
         fig_title='Mean points scored in evaluations',
@@ -138,7 +148,8 @@ class PlotMaker:
         mean_eval_df = self._combined_eval_results_df \
             .groupby(['model', 'train_timestep']) \
             .mean() \
-            .reset_index()
+            .reset_index() \
+            .assign(points=lambda df: -df['reward'])
         mean_eval_df = mean_eval_df[['model', 'train_timestep', 'points']]
 
         sns.lineplot(
@@ -183,6 +194,7 @@ class PlotMaker:
     )
     def _plot_eval_rounds_with_ge13(self, ax: plt.Axes):
         df = self._combined_eval_results_df \
+            .assign(points=lambda x: -x['reward']) \
             .assign(is_pts_ge13=lambda x: (x['points'] >= 13) * 100)
         df = df.groupby(['model', 'train_timestep']) \
             .mean() \
@@ -205,7 +217,7 @@ class PlotMaker:
     )
     def _plot_eval_successful_moon_shots(self, ax: plt.Axes):
         df = self._combined_eval_results_df \
-            .assign(is_agent_moon_shot=lambda x: x['points'] == -26)
+            .assign(is_agent_moon_shot=lambda x: x['reward'] == 26)
         df = df.groupby(['model', 'train_timestep']) \
             .sum() \
             .reset_index()
@@ -227,7 +239,7 @@ class PlotMaker:
     )
     def _plot_eval_moon_shots_against(self, ax: plt.Axes):
         df = self._combined_eval_results_df \
-            .assign(is_opponent_moon_shot=lambda x: x['points'] == 26)
+            .assign(is_opponent_moon_shot=lambda x: x['reward'] == -26)
         df = df.groupby(['model', 'train_timestep']) \
             .sum() \
             .reset_index()
@@ -250,3 +262,64 @@ class PlotMaker:
         self._plot_eval_rounds_with_ge13()
         self._plot_eval_successful_moon_shots()
         self._plot_eval_moon_shots_against()
+
+
+class PlotMakerCardPassing(PlotMaker):
+    """
+    All-in-one tool for visualising results of multiple training processes
+    of a card passing agent
+    """
+
+    @plot_wrapper(
+        fig_id='eval_reward_mean',
+        fig_title='Mean reward in evaluations',
+        xlabel='Training timestep',
+        ylabel='Mean reward',
+    )
+    def _plot_eval_results_mean(self, ax: plt.Axes):
+        mean_eval_df = self._combined_eval_results_df \
+            .groupby(['model', 'train_timestep']) \
+            .mean() \
+            .reset_index()
+        mean_eval_df = mean_eval_df[['model', 'train_timestep', 'reward']]
+
+        sns.lineplot(
+            ax=ax,
+            data=mean_eval_df,
+            x='train_timestep',
+            y='reward',
+            hue='model',
+            marker='o',
+        )
+        ax.grid(axis='y')
+
+    @plot_wrapper(
+        fig_id='eval_success_rate_mean',
+        fig_title='Rounds where passing cards reduced points scored',
+        xlabel='Training timestep',
+        ylabel='Success rate (%)',
+    )
+    def _plot_eval_success_rate_mean(self, ax: plt.Axes):
+        mean_eval_df = self._combined_eval_results_df \
+            .groupby(['model', 'train_timestep']) \
+            .mean() \
+            .reset_index()
+        mean_eval_df = mean_eval_df[['model', 'train_timestep', 'is_success']]
+        mean_eval_df['is_success'] *= 100
+
+        sns.lineplot(
+            ax=ax,
+            data=mean_eval_df,
+            x='train_timestep',
+            y='is_success',
+            hue='model',
+            marker='o',
+        )
+        ax.grid(axis='y')
+    
+    def plot_training(self):
+        self._plot_training_rewards()
+
+    def plot_eval(self):
+        self._plot_eval_results_mean()
+        self._plot_eval_success_rate_mean()
