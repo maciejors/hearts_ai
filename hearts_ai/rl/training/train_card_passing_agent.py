@@ -10,13 +10,14 @@ from stable_baselines3.common.logger import configure as configure_sb3logger
 from stable_baselines3.common.monitor import Monitor
 
 from hearts_ai.rl.env import HeartsCardsPassEnvironment
-from hearts_ai.rl.env.opponents_callbacks import (
-    get_random_action_taking_callback
-)
 from .common import (
     print_start_training_info,
     SupportedAlgorithm,
     update_self_play_clones,
+)
+from .opponents_callbacks import (
+    get_callback_from_agent,
+    get_random_action_taking_callback,
 )
 
 
@@ -26,7 +27,7 @@ def train_card_passing_agent(
         env_kwargs: dict,
         log_path: str,
         stages_lengths_episodes: list[int],
-        eval_freq_episodes: int = 1500,
+        eval_freq_episodes: int = 2500,
         n_eval_episodes: int = 100,
         progress_bar: bool = False,
         random_state: int | None = None,
@@ -48,7 +49,7 @@ def train_card_passing_agent(
         eval_freq_episodes: how often to evaluate the agent (in episodes).
         n_eval_episodes: how many episodes to run in a single evaluation.
         progress_bar:
-            Whether or not to display progress bars during training. This is
+            Whether to display progress bars during training. This is
             passed down to the models.
         random_state: Randomness control.
 
@@ -56,7 +57,7 @@ def train_card_passing_agent(
         A trained agent
 
     Examples:
-        >>> agent = train_card_passing_agent(
+        >>> card_passing_model = train_card_passing_agent(
         >>>     agent_cls=MaskablePPO,
         >>>     playing_agent=MaskablePPO.load('path/to/trained/player.zip'),
         >>>     env_kwargs={'eval_count': 10},
@@ -70,7 +71,8 @@ def train_card_passing_agent(
     Notes:
         - For PPO it is recommended to set :param:`opponents_update_freq`
           values and :param:`final_stage_len` to a multiple of PPO's update
-          frequency. Otherwise PPO will extend the training to fill its
+          frequency. It is set to 512 episodes.
+          Otherwise PPO will extend the training to fill its
           buffer anyway.
     """
     if random_state is None:
@@ -84,10 +86,7 @@ def train_card_passing_agent(
         return int(rng.integers(999999))
 
     ep_length = 3
-
-    def playing_callback(play_obs, play_action_masks):
-        return playing_agent.predict(play_obs, action_masks=play_action_masks)[0]
-
+    playing_callback = get_callback_from_agent(playing_agent)
     env = HeartsCardsPassEnvironment(
         opponents_callbacks=[],
         playing_callbacks=playing_callback,
@@ -95,12 +94,12 @@ def train_card_passing_agent(
     )
 
     if agent_cls == MaskablePPO:
-        n_steps = 1536  # multiple of 192 = 64 * 3 (batch_size * episode_length)
+        n_steps = 1536  # 8x multiple of 192 = 64 * 3 (batch_size * episode_length)
         print(f'PPO agent will update every {n_steps // ep_length} episodes')
         agent = MaskablePPO(
             'MlpPolicy', env,
             n_steps=n_steps,
-            stats_window_size=200,
+            stats_window_size=500,
             seed=get_seed(),
         )
     else:
@@ -111,8 +110,10 @@ def train_card_passing_agent(
     # in evaluation we are only concerned about the end result of the round, hence the sparse setting.
     env_eval_random = Monitor(
         HeartsCardsPassEnvironment(
-            opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
-                                for _ in range(3)],
+            opponents_callbacks=[
+                get_random_action_taking_callback(random_state=get_seed())
+                for _ in range(3)
+            ],
             playing_callbacks=playing_callback,
         ),
         info_keywords=("is_success",),
@@ -131,8 +132,8 @@ def train_card_passing_agent(
     steps_per_stage = np.array(stages_lengths_episodes) * ep_length
     print_start_training_info(steps_per_stage)
 
-    for stage_no, total_timesteps in enumerate(steps_per_stage.tolist(), 1):
-        print(f'Beginning stage {stage_no} out of {len(steps_per_stage)}')
+    for stage_no, stage_timesteps in enumerate(steps_per_stage.tolist(), 1):
+        print(f'## Beginning stage {stage_no} out of {len(steps_per_stage)}')
         
         update_self_play_clones(env, agent)
         env.reset(seed=get_seed())
@@ -149,7 +150,7 @@ def train_card_passing_agent(
         ])
 
         agent.learn(
-            total_timesteps=total_timesteps,
+            total_timesteps=stage_timesteps,
             reset_num_timesteps=False,
             callback=callbacks,
             progress_bar=progress_bar,

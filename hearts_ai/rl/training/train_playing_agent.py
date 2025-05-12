@@ -10,7 +10,7 @@ from stable_baselines3.common.logger import configure as configure_sb3logger
 from stable_baselines3.common.monitor import Monitor
 
 from hearts_ai.rl.env import HeartsPlayEnvironment
-from hearts_ai.rl.env.opponents_callbacks import (
+from hearts_ai.rl.training.opponents_callbacks import (
     get_random_action_taking_callback
 )
 from .common import (
@@ -46,7 +46,7 @@ def train_playing_agent(
         eval_freq_episodes: how often to evaluate the agent (in episodes).
         n_eval_episodes: how many episodes to run in a single evaluation.
         progress_bar:
-            Whether or not to display progress bars during training. This is
+            Whether to display progress bars during training. This is
             passed down to the models.
         random_state: Randomness control.
 
@@ -54,7 +54,7 @@ def train_playing_agent(
         A trained agent
 
     Examples:
-        >>> agent = train_playing_agent(
+        >>> playing_model = train_playing_agent(
         >>>     agent_cls=MaskablePPO,
         >>>     env_kwargs={'reward_setting': 'dense'},
         >>>     log_path='training_logs',
@@ -68,8 +68,8 @@ def train_playing_agent(
     Notes:
         - For PPO it is recommended to set :param:`opponents_update_freq`
           values and :param:`final_stage_len` to a multiple of PPO's update
-          frequency. Otherwise PPO will extend the training to fill its
-          buffer anyway.
+          frequency. It is set to 192 episodes.
+          Otherwise PPO will extend the training to fill its buffer anyway.
     """
     if random_state is None:
         warnings.warn(
@@ -89,7 +89,7 @@ def train_playing_agent(
     )
 
     if agent_cls == MaskablePPO:
-        n_steps = 2496  # multiple of 832 = 64 * 13 (batch_size * episode_length)
+        n_steps = 2496  # 3x multiple of 832 = 64 * 13 (batch_size * episode_length)
         print(f'PPO agent will update every {n_steps // ep_length} episodes')
         agent = MaskablePPO(
             'MlpPolicy', env,
@@ -125,8 +125,8 @@ def train_playing_agent(
     steps_per_stage = np.array(stages_lengths_episodes) * ep_length
     print_start_training_info(steps_per_stage)
 
-    for stage_no, total_timesteps in enumerate(steps_per_stage.tolist(), 1):
-        print(f'Beginning stage {stage_no} out of {len(steps_per_stage)}')
+    for stage_no, stage_timesteps in enumerate(steps_per_stage.tolist(), 1):
+        print(f'## Beginning stage {stage_no} out of {len(steps_per_stage)}')
 
         update_self_play_clones(env, agent)
         env.reset(seed=get_seed())
@@ -143,7 +143,7 @@ def train_playing_agent(
         ])
 
         agent.learn(
-            total_timesteps=total_timesteps,
+            total_timesteps=stage_timesteps,
             reset_num_timesteps=False,
             callback=callbacks,
             progress_bar=progress_bar,

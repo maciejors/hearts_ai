@@ -1,11 +1,15 @@
-from typing import TypeVar, Callable
-
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-_ActTypeGeneric = TypeVar('_ActTypeGeneric')
-_ObsTypeGeneric = TypeVar('_ObsTypeGeneric')
-ActionTakingCallback = Callable[[_ObsTypeGeneric, list[bool]], _ActTypeGeneric]
+from hearts_ai.rl.env.utils import ActionTakingCallback
+from .common import SupportedAlgorithm
+
+
+def get_callback_from_agent(agent: SupportedAlgorithm) -> ActionTakingCallback:
+    def callback(obs: ObsType, action_masks: list[bool]) -> ActType:
+        return agent.predict(obs, action_masks=np.array(action_masks))[0]
+
+    return callback
 
 
 def get_random_action_taking_callback(random_state: int) -> ActionTakingCallback:
