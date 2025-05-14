@@ -75,7 +75,7 @@ def create_play_env_action_masks(
         current_trick: list[Card],
         are_hearts_broken: bool,
         is_first_trick: bool,
-) -> ObsType:
+) -> np.ndarray:
     """
     Returns the action masks from the perspective of the current player.
 
@@ -89,12 +89,12 @@ def create_play_env_action_masks(
     )
     valid_plays_indices = [card_to_idx(c) for c in valid_plays]
 
-    mask_np = np.full(52, False)
-    mask_np[valid_plays_indices] = True
-    return mask_np.tolist()
+    mask = np.full(52, False)
+    mask[valid_plays_indices] = True
+    return mask
 
 
-def create_play_env_action_masks_from_hearts_core(hearts_core: HeartsCore) -> list[bool]:
+def create_play_env_action_masks_from_hearts_core(hearts_core: HeartsCore) -> np.ndarray:
     return create_play_env_action_masks(
         hand=hearts_core.hands[hearts_core.current_player_idx],
         current_trick=hearts_core.current_trick,
@@ -128,6 +128,6 @@ def create_cards_pass_env_obs(
 def create_cards_pass_env_action_masks(
         player_hand: list[Card],
         picked_cards: list[Card]
-) -> list[bool]:
+) -> np.ndarray:
     obs = create_cards_pass_env_obs(player_hand, picked_cards)
-    return np.array(obs == 1).tolist()
+    return np.array(obs == 1)

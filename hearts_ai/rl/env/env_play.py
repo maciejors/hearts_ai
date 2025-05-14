@@ -129,7 +129,7 @@ class HeartsPlayEnvironment(gym.Env):
         enable_passing_cards = self.card_passing_callbacks is not None
         self.core = HeartsCore(
             rules=HeartsRules(passing_cards=enable_passing_cards),
-            random_state=self.np_random.integers(999999),
+            random_state=int(self.np_random.integers(999999)),
         )
 
         self.core.next_round()
@@ -246,5 +246,5 @@ class HeartsPlayEnvironment(gym.Env):
 
         return self._get_obs(), reward, is_round_finished, False, info
 
-    def action_masks(self) -> list[bool]:
+    def action_masks(self) -> np.ndarray:
         return create_play_env_action_masks_from_hearts_core(self.core)

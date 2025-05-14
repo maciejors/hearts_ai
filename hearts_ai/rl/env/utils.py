@@ -1,19 +1,21 @@
 from collections.abc import Iterable
 from typing import TypeVar, Callable
 
+import numpy as np
 from gymnasium.core import ActType
 
 from hearts_ai.engine import Card, Suit
 
 _ActTypeGeneric = TypeVar('_ActTypeGeneric')
 _ObsTypeGeneric = TypeVar('_ObsTypeGeneric')
-ActionTakingCallback = Callable[[_ObsTypeGeneric, list[bool]], _ActTypeGeneric]
+ActionTakingCallback = Callable[[_ObsTypeGeneric, np.ndarray], _ActTypeGeneric]
 ActionTakingCallbackParam = ActionTakingCallback | list[ActionTakingCallback]
 
 
-def handle_action_taking_callback_param(p: ActionTakingCallbackParam,
-                                        list_len: int,
-                                        ) -> list[ActionTakingCallback]:
+def handle_action_taking_callback_param(
+        p: ActionTakingCallbackParam,
+        list_len: int,
+) -> list[ActionTakingCallback]:
     if isinstance(p, Iterable):
         return p
     return [p] * list_len

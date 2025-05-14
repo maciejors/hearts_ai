@@ -114,7 +114,7 @@ class HeartsCardsPassEnvironment(gym.Env):
         super().reset(seed=seed)
 
         core = HeartsCore(
-            random_state=self.np_random.integers(999999),
+            random_state=int(self.np_random.integers(999999)),
         )
         core.next_round()
         self._hands = core.hands
@@ -130,7 +130,7 @@ class HeartsCardsPassEnvironment(gym.Env):
         """
         hearts_core = HeartsCore(
             rules=HeartsRules(passing_cards=include_card_passing),
-            random_state=self.np_random.integers(999999),
+            random_state=int(self.np_random.integers(999999)),
         )
         hearts_core.next_round()
         hearts_core.hands = self.hands
@@ -224,5 +224,5 @@ class HeartsCardsPassEnvironment(gym.Env):
         reward = pts_with_passing.mean() - pts_no_passing.mean()
         return self._get_obs(), reward, True, False, {'is_success': reward > 0}
 
-    def action_masks(self) -> list[bool]:
+    def action_masks(self) -> np.ndarray:
         return create_cards_pass_env_action_masks(self.hands[0], self.picked_cards)
