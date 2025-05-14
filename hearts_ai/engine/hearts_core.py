@@ -4,7 +4,7 @@ from .constants import (
     MAX_POINTS, PLAYER_COUNT, CARDS_PER_PLAYER_COUNT, PassDirection, CARDS_TO_PASS_COUNT,
 )
 from .deck import Deck, Card, Suit
-from .utils import is_heart, points_for_card, is_starting_card
+from .utils import is_heart, points_for_card, is_starting_card, get_trick_winner_idx
 
 
 @dataclass
@@ -229,17 +229,10 @@ class HeartsCore:
             the second is the index of a player who took the trick.
         """
         current_trick = self.current_trick
-
-        winning_card = current_trick[0]
-        winner_idx = self.trick_starting_player_idx
-
-        for i in range(1, PLAYER_COUNT):
-            player_idx = (self.trick_starting_player_idx + i) % PLAYER_COUNT
-            card = current_trick[i]
-
-            if card.suit == self.leading_suit and card.rank_value > winning_card.rank_value:
-                winning_card = card
-                winner_idx = player_idx
+        winner_idx = get_trick_winner_idx(
+            current_trick,
+            trick_starting_player_idx=self.trick_starting_player_idx,
+        )
 
         self._taken_cards[winner_idx].extend(current_trick)
         self._trick_starting_player_idx = winner_idx

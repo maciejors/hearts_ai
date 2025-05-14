@@ -1,4 +1,4 @@
-from .constants import Suit, HEART_POINTS, Q_SPADES_POINTS
+from .constants import Suit, HEART_POINTS, Q_SPADES_POINTS, PLAYER_COUNT
 from .deck import Card
 
 
@@ -20,6 +20,21 @@ def points_for_card(card: Card) -> int:
     if is_q_spades(card):
         return Q_SPADES_POINTS
     return 0
+
+
+def get_trick_winner_idx(trick: list[Card], trick_starting_player_idx: int = 0) -> int:
+    winning_card = trick[0]
+    winner_idx = trick_starting_player_idx
+
+    for i in range(1, PLAYER_COUNT):
+        player_idx = (trick_starting_player_idx + i) % PLAYER_COUNT
+        card = trick[i]
+
+        if card.suit == trick[0].suit and card.rank_value > winning_card.rank_value:
+            winning_card = card
+            winner_idx = player_idx
+
+    return winner_idx
 
 
 def get_valid_plays(hand: list[Card],
