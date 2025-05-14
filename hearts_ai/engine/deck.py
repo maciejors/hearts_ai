@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Self
 
 import numpy as np
 
@@ -33,8 +34,16 @@ class Card:
     def __repr__(self) -> str:
         return str(self)
 
+    def __hash__(self):
+        return hash(str(self))
+
 
 class Deck:
+    """
+    Standard 52 cards deck.
+    Upon creating the object the deck is automatically shuffled
+    """
+
     def __init__(self, random_state: int | None = None):
         self._rng = np.random.default_rng(random_state)
 
@@ -47,12 +56,13 @@ class Deck:
         self._cards_left = 0
         self.shuffle()
 
-    def shuffle(self):
+    def shuffle(self) -> Self:
         """
         Resets and shuffles the deck
         """
         self._cards_left = len(self._cards)
         self._rng.shuffle(self._cards)
+        return self
 
     def deal(self, n: int) -> np.ndarray:
         """
@@ -66,3 +76,7 @@ class Deck:
         self._cards_left -= n
 
         return dealt_cards
+
+    def all(self) -> np.ndarray:
+        """Deal all remaining cards"""
+        return self.deal(self._cards_left)
