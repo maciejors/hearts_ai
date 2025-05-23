@@ -2,7 +2,7 @@ import numpy as np
 from gymnasium.core import ObsType, ActType
 
 from hearts_ai.rl.env.utils import ActionTakingCallback
-from .common import SupportedAlgorithm
+from ..common import SupportedAlgorithm
 
 
 def get_callback_from_agent(agent: SupportedAlgorithm) -> ActionTakingCallback:

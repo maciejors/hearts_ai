@@ -15,7 +15,7 @@ from .common import (
     SupportedAlgorithm,
     update_self_play_clones,
 )
-from .opponents_callbacks import (
+from .opponents.callbacks import (
     get_callback_from_agent,
     get_random_action_taking_callback,
 )
