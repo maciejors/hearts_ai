@@ -18,19 +18,19 @@ from hearts_ai.rl.training.common import SupportedAlgorithm
 from .base import BasePlayer
 
 
-def _opponents_suits_flags_default_factory() -> dict[Suit, list[bool]]:
+def _opponents_voids_default_factory() -> dict[Suit, list[bool]]:
     result = {}
     for suit in Suit:
-        result[suit] = [True] * (PLAYER_COUNT - 1)
+        result[suit] = [False] * (PLAYER_COUNT - 1)
     return result
 
 
 class RLPlayer(BasePlayer):
     @dataclass
     class Memory:
-        # the suits the opponents have (True - has, False - voided)
         curr_trick_no: int = 0
-        opponents_suits_flags: dict[Suit, list[bool]] = field(default_factory=_opponents_suits_flags_default_factory)
+        # the suits the opponents have voided (True - voided, False - might have this suit)
+        opponents_voids: dict[Suit, list[bool]] = field(default_factory=_opponents_voids_default_factory)
         cards_played_by_each: list[list[Card]] = field(default_factory=lambda: [[] for _ in range(PLAYER_COUNT)])
         points: list[int] = field(default_factory=lambda: [0] * PLAYER_COUNT)
         pass_direction: PassDirection = PassDirection.NO_PASSING
@@ -98,7 +98,7 @@ class RLPlayer(BasePlayer):
         for player_idx, card_played in zip(indexes_of_players_in_trick, trick):
             self.memory.cards_played_by_each[player_idx].append(card_played)
             if player_idx != 0 and card_played.suit != leading_suit:
-                self.memory.opponents_suits_flags[leading_suit][player_idx - 1] = False
+                self.memory.opponents_voids[leading_suit][player_idx - 1] = True
 
     def post_round_callback(self, score: int) -> None:
         self.memory = RLPlayer.Memory()
@@ -131,7 +131,7 @@ class RLPlayer(BasePlayer):
         for card in cards_unknown_owner:
             possible_receivers = []
             for i, opponent_idx in enumerate(opponent_indices):
-                if self.memory.opponents_suits_flags[card.suit][i]:
+                if not self.memory.opponents_voids[card.suit][i]:
                     possible_receivers.append(opponent_idx)
             if not possible_receivers:
                 # in case something goes wrong just give the card to anyone
