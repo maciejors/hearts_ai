@@ -5,7 +5,7 @@ import numpy as np
 
 from hearts_ai.engine import HeartsRules, PassDirection
 from hearts_ai.game import HeartsGame
-from hearts_ai.game.players import RandomPlayer
+from hearts_ai.game.players import RandomPlayer, RuleBasedPlayer
 
 
 def get_game_with_random_players() -> HeartsGame:
@@ -41,6 +41,18 @@ class TestHeartsGame(unittest.TestCase):
             np.sum([len(cards_for_player) for cards_for_player in game.core._taken_cards]),
             'There should be 52 cards across all tricks taken',
         )
+
+    def test_rule_based_players_do_not_raise_errors(self):
+        players = [
+            RuleBasedPlayer() for _ in range(4)
+        ]
+        game = HeartsGame(
+            players,
+            rules=HeartsRules(),
+            random_state=5,
+        )
+        for _ in range(10):
+            game.play_round()
 
     def test_complete_round(self):
         # arrange

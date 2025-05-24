@@ -50,6 +50,14 @@ class RLPlayer(BasePlayer):
         self.memory = RLPlayer.Memory()
         self._np_random = np.random.default_rng(random_state)
 
+    def _get_indexes_of_players_in_trick(self) -> list[int]:
+        """
+        Returns:
+            indexes of players in the list trick, relative to us
+            (0 - us, 1 - left, 2 - across, 3 - right)
+        """
+        return list(np.array(range(PLAYER_COUNT)) - self.memory.my_idx_in_curr_trick)
+
     def play_card(
             self,
             hand: list[Card],
@@ -59,6 +67,12 @@ class RLPlayer(BasePlayer):
     ) -> Card:
         self.memory.my_idx_in_curr_trick = len(trick)
         self.memory.curr_trick_no += 1
+
+        if len(trick) > 0:
+            leading_suit = trick[0].suit
+            for player_idx, card_played in zip(self._get_indexes_of_players_in_trick()[:len(trick)], trick):
+                if player_idx != 0 and card_played.suit != leading_suit:
+                    self.memory.opponents_voids[leading_suit][player_idx - 1] = True
 
         votes: list[Card] = []
         for _ in range(self.simulation_count):
@@ -81,12 +95,7 @@ class RLPlayer(BasePlayer):
         self.memory.passed_cards = cards_to_pass.copy()
         return cards_to_pass
 
-    def _get_indexes_of_players_in_trick(self) -> list[int]:
-        return list(np.array(range(PLAYER_COUNT)) - self.memory.my_idx_in_curr_trick)
-
     def post_trick_callback(self, trick: list[Card], is_trick_taken: bool) -> None:
-        # indexes of players in the list trick, relative to us
-        # 0 - us, 1 - left, 2 - across, 3 - right
         indexes_of_players_in_trick = self._get_indexes_of_players_in_trick()
         trick_winner_idx = get_trick_winner_idx(
             trick, trick_starting_player_idx=indexes_of_players_in_trick[0]

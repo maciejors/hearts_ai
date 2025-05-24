@@ -30,8 +30,10 @@ class HeartsCardsPassEnvironment(gym.Env):
     the index of a card to play. The cards are ordered in the following way:
     clubs, diamonds, spades, hearts, with ranks ordered from 2 to Ace.
 
-    Each observation is a vector of length 52, encoding agent's relation to
-    each card (-1: picked to pass / 0: not in hand / 1: in hand)
+    Each observation is a vector of length 55, the elements at indices 0-51
+    encode agent's relation to each card (-1: picked to pass / 0: not in hand / 1: in hand),
+    and at indices 52-54 one-hot encode the information on the pass direction
+    (obs[52] == 1 -> left, 53 -> across, 54 -> right)
 
     Agent picks cards one by one, and once the third card is picked, the
     agent receives a reward and the environment terminates. The reward is

@@ -4,5 +4,5 @@ of Hearts, in the form of the :class:`HeartsCore` class.
 """
 
 from .constants import Suit, PassDirection
-from .deck import Card
+from .deck import Deck, Card
 from .hearts_core import HeartsCore, HeartsRules
