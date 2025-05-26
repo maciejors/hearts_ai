@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch, PropertyMock
 import numpy as np
 from gymnasium.core import ObsType
 
-from hearts_ai.engine import HeartsCore
+from hearts_ai.engine import HeartsRound
 from hearts_ai.rl.env import HeartsCardsPassEnvironment
 from hearts_ai.rl.env.utils import card_to_idx
 from test.utils import c, cl
@@ -19,9 +19,9 @@ def get_sample_env() -> tuple[HeartsCardsPassEnvironment, ObsType]:
     return env, obs_reset
 
 
-def get_mock_params_for_hearts_core() -> dict:
+def get_mock_params_for_hearts_round() -> dict:
     """
-    Shared set of mocked attributes for HeartsCore
+    Shared set of mocked attributes for HeartsRound
     """
     # looks quirky but will ensure that scores are different every time,
     # so the reward should never be 0 if correctly calculated
@@ -35,16 +35,16 @@ def get_mock_params_for_hearts_core() -> dict:
     return {
         'pick_cards_to_pass': MagicMock(),
         'complete_pass_cards': MagicMock(),
-        'is_round_finished': True,
-        'current_round_scores': PropertyMock(side_effect=lambda: [next_val(), 0, 0, 0]),
+        'is_finished': True,
+        'scores': PropertyMock(side_effect=lambda: [next_val(), 0, 0, 0]),
     }
 
 
 class TestHeartsPlayEnvironment(unittest.TestCase):
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
@@ -59,8 +59,8 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         self.assertEqual(2, np.sum(obs_reset[:52]), 'Agent should only have 2 cards in its hand')
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     def test_step_state(self):
         with patch.object(HeartsCardsPassEnvironment.State, 'hands', [cl(['2♣', '3♦', '4♦']), [], [], []]):
@@ -78,8 +78,8 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
                              'All other cards should have a value of 0 in the state')
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     def test_state_pass_direction(self):
         env, obs_reset_init = get_sample_env()
@@ -100,8 +100,8 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
             self.assertEqual(1, np.sum(obs_reset[52:55]), 'Pass direction should be one-hot encoded')
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
@@ -117,8 +117,8 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         self.assertEqual(2, np.sum(action_mask_reset), 'There should only be 2 valid plays')
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
@@ -134,8 +134,8 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         self.assertEqual(1, np.sum(action_mask), 'There should only be 1 valid play')
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
@@ -155,8 +155,8 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         self.assertEqual(0, reward, 'Reward should be 0 after an invalid action is taken')
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
@@ -172,8 +172,8 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         self.assertTrue(terminated3, 'Environment should terminate after all 3 cards are picked')
 
     @patch.multiple(
-        HeartsCore,
-        **get_mock_params_for_hearts_core(),
+        HeartsRound,
+        **get_mock_params_for_hearts_round(),
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,

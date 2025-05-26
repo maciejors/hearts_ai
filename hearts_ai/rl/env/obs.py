@@ -1,7 +1,7 @@
 import numpy as np
 from gymnasium.core import ObsType
 
-from hearts_ai.engine import HeartsCore, Suit, Card, PassDirection
+from hearts_ai.engine import HeartsRound, Suit, Card, PassDirection
 from hearts_ai.engine.utils import get_valid_plays
 from hearts_ai.rl.env.utils import card_to_idx
 
@@ -58,15 +58,15 @@ def create_play_env_obs(
     return state
 
 
-def create_play_env_obs_from_hearts_core(hearts_core: HeartsCore) -> ObsType:
+def create_play_env_obs_from_hearts_round(hearts_round: HeartsRound) -> ObsType:
     return create_play_env_obs(
-        trick_no=hearts_core.trick_no,
-        player_idx=hearts_core.current_player_idx,
-        trick_starting_player_idx=hearts_core.trick_starting_player_idx,
-        current_trick=hearts_core.current_trick,
-        hands=hearts_core.hands,
-        played_cards=hearts_core.played_cards,
-        current_round_points_collected=hearts_core.current_round_points_collected,
+        trick_no=hearts_round.trick_no,
+        player_idx=hearts_round.current_player_idx,
+        trick_starting_player_idx=hearts_round.trick_starting_player_idx,
+        current_trick=hearts_round.current_trick,
+        hands=hearts_round.hands,
+        played_cards=hearts_round.played_cards,
+        current_round_points_collected=hearts_round.points_collected,
     )
 
 
@@ -94,12 +94,12 @@ def create_play_env_action_masks(
     return mask
 
 
-def create_play_env_action_masks_from_hearts_core(hearts_core: HeartsCore) -> np.ndarray:
+def create_play_env_action_masks_from_hearts_round(hearts_round: HeartsRound) -> np.ndarray:
     return create_play_env_action_masks(
-        hand=hearts_core.hands[hearts_core.current_player_idx],
-        current_trick=hearts_core.current_trick,
-        are_hearts_broken=hearts_core.are_hearts_broken,
-        is_first_trick=hearts_core.trick_no == 1,
+        hand=hearts_round.hands[hearts_round.current_player_idx],
+        current_trick=hearts_round.current_trick,
+        are_hearts_broken=hearts_round.are_hearts_broken,
+        is_first_trick=hearts_round.trick_no == 1,
     )
 
 

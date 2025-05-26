@@ -6,12 +6,12 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-from hearts_ai.engine import Card, HeartsCore, HeartsRules, PassDirection
+from hearts_ai.engine import Card, HeartsRound, HeartsRules, PassDirection
 from .obs import (
     create_cards_pass_env_obs,
     create_cards_pass_env_action_masks,
-    create_play_env_obs_from_hearts_core,
-    create_play_env_action_masks_from_hearts_core,
+    create_play_env_obs_from_hearts_round,
+    create_play_env_action_masks_from_hearts_round,
 )
 from .utils import (
     action_to_card,
@@ -130,10 +130,9 @@ class HeartsCardsPassEnvironment(gym.Env):
     ) -> tuple[ObsType, dict[str, Any]]:
         super().reset(seed=seed)
 
-        core = HeartsCore(
+        hearts_round = HeartsRound(
             random_state=int(self.np_random.integers(999999)),
         )
-        core.next_round()
 
         if self.state is None:
             next_pass_direction = PassDirection.LEFT
@@ -144,7 +143,7 @@ class HeartsCardsPassEnvironment(gym.Env):
 
         self.state = HeartsCardsPassEnvironment.State(
             _pass_direction=next_pass_direction,
-            _hands=core.hands,
+            _hands=hearts_round.hands,
         )
         return self._get_obs(), {}
 
@@ -154,16 +153,15 @@ class HeartsCardsPassEnvironment(gym.Env):
             Points for the round for the player at index 0, or -26 if the
             player has shot the moon
         """
-        hearts_core = HeartsCore(
+        hearts_round = HeartsRound(
             rules=HeartsRules(passing_cards=include_card_passing),
             random_state=int(self.np_random.integers(999999)),
+            pass_direction=self.state.pass_direction
         )
-        hearts_core.next_round()
-        hearts_core.hands = [h.copy() for h in self.state.hands]
+        hearts_round.hands = [h.copy() for h in self.state.hands]
 
         if include_card_passing:
-            hearts_core.round_no = self.state.pass_direction.value + 1
-            hearts_core.pick_cards_to_pass(0, self.state.picked_cards)
+            hearts_round.pick_cards_to_pass(0, self.state.picked_cards)
 
             for opponent_player_idx, opponent_callback in enumerate(self.opponents_callbacks, 1):
                 opponent_hand = self.state.hands[opponent_player_idx]
@@ -180,23 +178,23 @@ class HeartsCardsPassEnvironment(gym.Env):
                     card_to_pass = action_to_card(action)
                     opponent_picked_cards.append(card_to_pass)
 
-                hearts_core.pick_cards_to_pass(opponent_player_idx, opponent_picked_cards)
-            hearts_core.complete_pass_cards()
+                hearts_round.pick_cards_to_pass(opponent_player_idx, opponent_picked_cards)
+            hearts_round.complete_pass_cards()
 
-        while not hearts_core.is_round_finished:
+        while not hearts_round.is_finished:
             # simulate gameplay
-            obs = create_play_env_obs_from_hearts_core(hearts_core)
-            action_masks = create_play_env_action_masks_from_hearts_core(hearts_core)
-            playing_callback = self.playing_callbacks[hearts_core.current_player_idx]
+            obs = create_play_env_obs_from_hearts_round(hearts_round)
+            action_masks = create_play_env_action_masks_from_hearts_round(hearts_round)
+            playing_callback = self.playing_callbacks[hearts_round.current_player_idx]
             action = playing_callback(obs, action_masks)
             card_to_play = action_to_card(action)
-            hearts_core.play_card(card_to_play)
+            hearts_round.play_card(card_to_play)
 
-            if hearts_core.is_current_trick_full:
-                hearts_core.complete_trick()
+            if hearts_round.is_current_trick_full:
+                hearts_round.complete_trick()
 
-        end_of_round_score = hearts_core.current_round_scores[0]
-        if hearts_core.is_moon_shot_triggered and end_of_round_score == 0:
+        end_of_round_score = hearts_round.scores[0]
+        if hearts_round.is_moon_shot_triggered and end_of_round_score == 0:
             return -26
         return end_of_round_score
 

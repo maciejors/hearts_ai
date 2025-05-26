@@ -1,54 +1,78 @@
-from dataclasses import dataclass
+import numpy as np
 
 from .constants import (
     MAX_POINTS, PLAYER_COUNT, CARDS_PER_PLAYER_COUNT, PassDirection, CARDS_TO_PASS_COUNT,
 )
 from .deck import Deck, Card, Suit
+from .rules import HeartsRules
 from .utils import is_heart, points_for_card, is_starting_card, get_trick_winner_idx
 
 
-@dataclass
-class HeartsRules:
-    """
-    Args:
-        moon_shot: Determines whether shooting the moon is enabled
-        passing_cards: Determines whether passing cards is enabled
-    """
-    moon_shot: bool = True
-    passing_cards: bool = True
+def _get_empty_cards_list_per_player() -> list[list[Card]]:
+    return [[] for _ in range(PLAYER_COUNT)]
 
 
-class HeartsCore:
+class HeartsRound:
     """
     Engine for the standard 4-player game of Hearts
 
     Args:
         rules: Toggleable rules of the engine. Set to ``None`` for default
             rules (see :class:`HeartsRules` for defaults)
+        pass_direction: Pass direction for this round. This parameter is
+            ignored if card passing rule is disabled - in such case,
+            pass direction will always be NO_PASSING. Default is ``None``,
+            which means it will be set to LEFT if the card passing rule is
+            enabled.
         random_state: Random seed for reproducibility
     """
 
     def __init__(self,
                  rules: HeartsRules = HeartsRules(),
+                 pass_direction: PassDirection | None = None,
                  random_state: int | None = None):
 
-        self.deck = Deck(random_state=random_state)
+        self._rng = np.random.default_rng(random_state)
         self.rules = rules
 
-        self.round_no = 0
-        self.trick_no = 0
+        if not self.rules.passing_cards:
+            self._pass_direction = PassDirection.NO_PASSING
+        elif pass_direction is not None:
+            self._pass_direction = pass_direction
+        else:
+            self._pass_direction = PassDirection.LEFT
+
+        deck = Deck(random_state=random_state)
+        deck.shuffle()
+
+        self._hands = _get_empty_cards_list_per_player()
+        self._taken_cards = _get_empty_cards_list_per_player()
+        self._played_cards = _get_empty_cards_list_per_player()
+
+        for player_idx in range(PLAYER_COUNT):
+            self._hands[player_idx] = deck.deal(CARDS_PER_PLAYER_COUNT).tolist()
+
+        self.trick_no = 1
         self.are_hearts_broken = False
 
-        self._hands: list[list[Card]] = [[] for _ in range(PLAYER_COUNT)]
-        self._taken_cards: list[list[Card]] = [[] for _ in range(PLAYER_COUNT)]
-        self._played_cards: list[list[Card]] = [[] for _ in range(PLAYER_COUNT)]
         self._trick_starting_player_idx: int | None = None
         self._current_trick: list[Card] = []
 
-        self.__cards_to_pass: list[list[Card]] = [[] for _ in range(PLAYER_COUNT)]
-        self.are_cards_passed = False
+        self.__cards_to_pass = _get_empty_cards_list_per_player()
 
-        self.scoreboard = [0 for _ in range(PLAYER_COUNT)]
+        self.are_cards_passed = False
+        if not self.__can_perform_card_passing():
+            self.are_cards_passed = True
+
+        self.set_starting_player()
+
+    @property
+    def pass_direction(self) -> PassDirection:
+        return self._pass_direction
+
+    @pass_direction.setter
+    def pass_direction(self, value):
+        self._pass_direction = value
 
     @property
     def hands(self) -> list[list[Card]]:
@@ -77,12 +101,7 @@ class HeartsCore:
         return self._current_trick.copy()
 
     @property
-    def pass_direction(self) -> PassDirection:
-        pass_directions_ordered = list(PassDirection)
-        return pass_directions_ordered[max(self.round_no - 1, 0) % len(pass_directions_ordered)]
-
-    @property
-    def current_round_points_collected(self) -> list[int]:
+    def points_collected(self) -> list[int]:
         """
         The number of points collected by each player in the round.
         Does not take the moon shot into account.
@@ -91,12 +110,12 @@ class HeartsCore:
                 for i in range(PLAYER_COUNT)]
 
     @property
-    def current_round_scores(self) -> list[int]:
+    def scores(self) -> list[int]:
         """
         The score of each player in the round.
         Takes the moon shot into account.
         """
-        round_scores = self.current_round_points_collected.copy()
+        round_scores = self.points_collected.copy()
 
         if self.rules.moon_shot and self.is_moon_shot_triggered:
             shooter_idx = round_scores.index(MAX_POINTS)
@@ -126,10 +145,10 @@ class HeartsCore:
     @property
     def is_moon_shot_triggered(self) -> bool:
         """Check if any of the players have shot the moon in this round"""
-        return MAX_POINTS in self.current_round_points_collected
+        return MAX_POINTS in self.points_collected
 
     @property
-    def is_round_finished(self) -> bool:
+    def is_finished(self) -> bool:
         return self.trick_no == CARDS_PER_PLAYER_COUNT + 1
 
     def set_starting_player(self):
@@ -140,30 +159,6 @@ class HeartsCore:
             if any(is_starting_card(card) for card in self._hands[player_idx]):
                 self._trick_starting_player_idx = player_idx
                 return
-
-    def next_round(self):
-        """
-        Completes the current round and updates the state for the next round.
-        """
-        for player_idx in range(PLAYER_COUNT):
-            self.scoreboard[player_idx] += self.current_round_scores[player_idx]
-
-        # prepare the next round
-        self.round_no += 1
-        self.trick_no = 1
-        self.deck.shuffle()
-        self.are_hearts_broken = False
-        for player_idx in range(PLAYER_COUNT):
-            self._hands[player_idx] = list(self.deck.deal(CARDS_PER_PLAYER_COUNT))
-            self._taken_cards[player_idx] = []
-            self._played_cards[player_idx] = []
-
-        self.set_starting_player()
-
-        self.__cards_to_pass = [[] for _ in range(PLAYER_COUNT)]
-        self.are_cards_passed = False
-        if self.pass_direction == PassDirection.NO_PASSING or not self.rules.passing_cards:
-            self.are_cards_passed = True
 
     def __can_perform_card_passing(self) -> bool:
         """
@@ -208,7 +203,7 @@ class HeartsCore:
         if self.trick_no > CARDS_PER_PLAYER_COUNT:
             raise RuntimeError('The round has ended. The trick cannot be played')
         if self.is_current_trick_full:
-            raise RuntimeError('Cannnot play card because the trick is full. '
+            raise RuntimeError('Cannot play card because the trick is full. '
                                'Complete the trick before playing the next card')
         if not self.are_cards_passed:
             raise RuntimeError('Cannot play any cards before cards are passed.')
@@ -240,3 +235,22 @@ class HeartsCore:
         self.trick_no += 1
 
         return current_trick, winner_idx
+
+    def next(self) -> 'HeartsRound':
+        """
+        Get the next round object, with the same rules.
+        This will return a fresh round object, but with updated pass direction
+        is this rule is enabled.
+        """
+        if not self.rules.passing_cards:
+            next_pass_direction = PassDirection.NO_PASSING
+        else:
+            all_pass_directions = list(PassDirection)
+            next_pass_direction = all_pass_directions[(self.pass_direction.value + 1) % len(all_pass_directions)]
+
+        next_round = HeartsRound(
+            rules=self.rules,
+            pass_direction=next_pass_direction,
+            random_state=int(self._rng.integers(999999))
+        )
+        return next_round

@@ -5,11 +5,11 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-from hearts_ai.engine import HeartsCore, HeartsRules
+from hearts_ai.engine import HeartsRound, HeartsRules
 from hearts_ai.engine.utils import points_for_card
 from .obs import (
-    create_play_env_obs_from_hearts_core,
-    create_play_env_action_masks_from_hearts_core,
+    create_play_env_obs_from_hearts_round,
+    create_play_env_action_masks_from_hearts_round,
     create_cards_pass_env_obs,
     create_cards_pass_env_action_masks,
 )
@@ -67,7 +67,7 @@ class HeartsPlayEnvironment(gym.Env):
     0 if it has not won it, irrespective of the number of points scored
 
     Args:
-        opponents_callbacks: Callbacks responsible for decision making of other
+        opponents_callbacks: Callbacks responsible for decision-making of other
             players. In a self-play environment, these should represent
             snapshots of the learning agent. This parameter should be a list of
             3 functions, each one accepting a state and an action mask, and
@@ -107,16 +107,16 @@ class HeartsPlayEnvironment(gym.Env):
         self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(217,), dtype=np.int8)
 
         # properly set in reset()
-        self.core: HeartsCore | None = None
+        self.round: HeartsRound | None = None
 
     def _get_obs(self) -> ObsType:
-        return create_play_env_obs_from_hearts_core(self.core)
+        return create_play_env_obs_from_hearts_round(self.round)
 
     def __simulate_next_opponent(self):
-        opponent_callback = self.opponents_callbacks[self.core.current_player_idx - 1]
+        opponent_callback = self.opponents_callbacks[self.round.current_player_idx - 1]
         opponent_action = opponent_callback(self._get_obs(), self.action_masks())
         opponent_card = action_to_card(opponent_action)
-        self.core.play_card(opponent_card)
+        self.round.play_card(opponent_card)
 
     def reset(
             self,
@@ -127,34 +127,36 @@ class HeartsPlayEnvironment(gym.Env):
         super().reset(seed=seed)
 
         enable_passing_cards = self.card_passing_callbacks is not None
-        self.core = HeartsCore(
-            rules=HeartsRules(passing_cards=enable_passing_cards),
-            random_state=int(self.np_random.integers(999999)),
-        )
 
-        self.core.next_round()
+        if self.round is None:
+            self.round = HeartsRound(
+                rules=HeartsRules(passing_cards=enable_passing_cards),
+                random_state=int(self.np_random.integers(999999)),
+            )
+        else:
+            self.round = self.round.next()
 
-        if enable_passing_cards and not self.core.are_cards_passed:
+        if enable_passing_cards and not self.round.are_cards_passed:
             for player_idx, card_passing_callback in enumerate(self.card_passing_callbacks):
 
                 picked_cards = []
-                player_hand = self.core.hands[player_idx]
+                player_hand = self.round.hands[player_idx]
 
                 for _ in range(3):
                     obs = create_cards_pass_env_obs(
-                        player_hand, picked_cards, self.core.pass_direction
+                        player_hand, picked_cards, self.round.pass_direction
                     )
                     action_masks = create_cards_pass_env_action_masks(
-                        player_hand, picked_cards, self.core.pass_direction
+                        player_hand, picked_cards, self.round.pass_direction
                     )
                     action = card_passing_callback(obs, action_masks)
                     card_to_pass = action_to_card(action)
                     picked_cards.append(card_to_pass)
 
-                self.core.pick_cards_to_pass(player_idx, picked_cards)
-            self.core.complete_pass_cards()
+                self.round.pick_cards_to_pass(player_idx, picked_cards)
+            self.round.complete_pass_cards()
 
-        while self.core.current_player_idx != 0:
+        while self.round.current_player_idx != 0:
             self.__simulate_next_opponent()
 
         return self._get_obs(), {}
@@ -206,49 +208,49 @@ class HeartsPlayEnvironment(gym.Env):
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         # take an action
         card_to_play = action_to_card(action)
-        if card_to_play not in self.core.hands[0]:
+        if card_to_play not in self.round.hands[0]:
             warnings.warn('Illegal action - the selected card is not on hand.'
                           'Environment state will not change')
             return self._get_obs(), 0, False, False, {}
 
-        self.core.play_card(card_to_play)
-        while not self.core.is_current_trick_full:
+        self.round.play_card(card_to_play)
+        while not self.round.is_current_trick_full:
             self.__simulate_next_opponent()
 
-        trick, trick_winner_idx = self.core.complete_trick()
+        trick, trick_winner_idx = self.round.complete_trick()
         trick_points = sum(points_for_card(c) for c in trick)
 
         # calculate the reward
         if self.reward_setting == 'sparse':
             reward = HeartsPlayEnvironment._calculate_reward_sparse(
-                self.core.is_round_finished,
-                self.core.current_round_points_collected
+                self.round.is_finished,
+                self.round.points_collected
             )
         elif self.reward_setting == 'dense':
             reward = HeartsPlayEnvironment._calculate_reward_dense(
-                self.core.is_round_finished,
-                self.core.current_round_points_collected,
+                self.round.is_finished,
+                self.round.points_collected,
                 trick_points,
                 trick_winner_idx == 0
             )
         else:  # binary
             reward = HeartsPlayEnvironment._calculate_reward_binary(
-                self.core.is_round_finished,
-                self.core.current_round_scores,
+                self.round.is_finished,
+                self.round.scores,
             )
 
-        is_round_finished = self.core.is_round_finished
+        is_round_finished = self.round.is_finished
         info = {}
 
         if not is_round_finished:
-            while self.core.current_player_idx != 0:
+            while self.round.current_player_idx != 0:
                 self.__simulate_next_opponent()
         else:
-            scores = self.core.current_round_scores
+            scores = self.round.scores
             is_success = min(scores) == scores[0]
             info['is_success'] = is_success
 
         return self._get_obs(), reward, is_round_finished, False, info
 
     def action_masks(self) -> np.ndarray:
-        return create_play_env_action_masks_from_hearts_core(self.core)
+        return create_play_env_action_masks_from_hearts_round(self.round)

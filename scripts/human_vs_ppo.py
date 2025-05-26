@@ -22,9 +22,10 @@ if __name__ == '__main__':
         for _ in range(3)
     ]
     game = HeartsGame([InputPlayer(), *opponents])
-    while np.max(game.core.scoreboard) < 100:
+    while np.max(game.round.scoreboard) < 100:
         game.play_round()
+        game.next_round()
 
     print(f'Game finished')
-    print(f'Your score: {game.core.scoreboard[0]}')
-    print(f'All scores: {game.core.scoreboard}')
+    print(f'Your score: {game.round.scoreboard[0]}')
+    print(f'All scores: {game.round.scoreboard}')
