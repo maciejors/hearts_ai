@@ -1,5 +1,4 @@
 import os
-import warnings
 from typing import Type
 
 import numpy as np
@@ -14,6 +13,10 @@ from .common import (
     print_start_training_info,
     SupportedAlgorithm,
     update_self_play_clones,
+    pre_train_setup,
+    EPISODE_LENGTH_PLAY,
+    PPO_N_STEPS_PLAY,
+    STATS_WINDOW_SIZE_PLAY,
 )
 from .opponents.callbacks import (
     get_random_action_taking_callback
@@ -31,6 +34,9 @@ def train_playing_agent(
         random_state: int | None = None,
 ) -> SupportedAlgorithm:
     """
+    A single run for the playing agent. Run in a loop to record multiple
+    runs.
+
     Args:
         agent_cls: Agent class
         env_kwargs: Extra keyword arguments for :class:`HeartsPlayEnvironment`
@@ -69,19 +75,9 @@ def train_playing_agent(
         - For PPO it is recommended to set :param:`opponents_update_freq`
           values and :param:`final_stage_len` to a multiple of PPO's update
           frequency. It is set to 192 episodes.
-          Otherwise PPO will extend the training to fill its buffer anyway.
+          Otherwise, PPO will extend the training to fill its buffer anyway.
     """
-    if random_state is None:
-        warnings.warn(
-            '`random_state` not set - consider using it for reproducibility',
-            UserWarning,
-        )
-    rng = np.random.default_rng(random_state)
-
-    def get_seed() -> int:
-        return int(rng.integers(999999))
-
-    ep_length = 13
+    get_seed, log_path = pre_train_setup(log_path, random_state)
 
     env = HeartsPlayEnvironment(
         opponents_callbacks=[],
@@ -89,18 +85,15 @@ def train_playing_agent(
     )
 
     if agent_cls == MaskablePPO:
-        n_steps = 2496  # 3x multiple of 832 = 64 * 13 (batch_size * episode_length)
-        print(f'PPO agent will update every {n_steps // ep_length} episodes')
+        print(f'PPO agent will update every {PPO_N_STEPS_PLAY // EPISODE_LENGTH_PLAY} episodes')
         agent = MaskablePPO(
             'MlpPolicy', env,
-            n_steps=n_steps,
-            stats_window_size=2000,
+            n_steps=PPO_N_STEPS_PLAY,
+            stats_window_size=STATS_WINDOW_SIZE_PLAY,
             seed=get_seed(),
         )
     else:
         raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
-
-    os.makedirs(log_path, exist_ok=True)
 
     # sparse setting, because we only care about the end-of-round score
     env_eval_random = Monitor(
@@ -112,17 +105,16 @@ def train_playing_agent(
         info_keywords=("is_success",),
     )
     env_eval_random.reset(seed=get_seed())
-
-    eval_log_path = os.path.join(log_path, 'eval')
+    eval_random_log_path = os.path.join(log_path, 'eval')
     eval_random_callback = MaskableEvalCallback(
         env_eval_random,
-        best_model_save_path=eval_log_path,
-        log_path=eval_log_path,
-        eval_freq=eval_freq_episodes * ep_length,
+        best_model_save_path=eval_random_log_path,
+        log_path=eval_random_log_path,
+        eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,
         n_eval_episodes=n_eval_episodes,
     )
 
-    steps_per_stage = np.array(stages_lengths_episodes) * ep_length
+    steps_per_stage = np.array(stages_lengths_episodes) * EPISODE_LENGTH_PLAY
     print_start_training_info(steps_per_stage)
 
     for stage_no, stage_timesteps in enumerate(steps_per_stage.tolist(), 1):

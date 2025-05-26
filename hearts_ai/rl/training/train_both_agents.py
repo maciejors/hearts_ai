@@ -1,5 +1,4 @@
 import os
-import warnings
 from typing import Type
 
 import numpy as np
@@ -14,6 +13,13 @@ from .common import (
     print_start_training_info,
     SupportedAlgorithm,
     update_self_play_clones,
+    pre_train_setup,
+    EPISODE_LENGTH_PLAY,
+    EPISODE_LENGTH_CARD_PASS,
+    PPO_N_STEPS_PLAY,
+    PPO_N_STEPS_CARD_PASS,
+    STATS_WINDOW_SIZE_PLAY,
+    STATS_WINDOW_SIZE_CARD_PASS,
 )
 from .opponents.callbacks import (
     get_callback_from_agent,
@@ -22,7 +28,8 @@ from .opponents.callbacks import (
 
 
 def train_both_agents(
-        agent_cls: Type[SupportedAlgorithm],
+        agent_cls_play: Type[SupportedAlgorithm],
+        agent_cls_card_pass: Type[SupportedAlgorithm],
         play_env_kwargs: dict,
         card_pass_env_kwargs: dict,
         log_path: str,
@@ -38,8 +45,12 @@ def train_both_agents(
     playing environment training are saved, although note that both agents
     participate in that training.
 
+    This function makes only a single run. Run in a loop to record multiple
+    runs.
+
     Args:
-        agent_cls: Agent class
+        agent_cls_play: Agent class for the playing environment
+        agent_cls_card_pass: Agent class for the card passing environment
         play_env_kwargs: Extra keyword arguments for :class:`HeartsPlayEnvironment`
             (except for ``opponents_callbacks``)
         card_pass_env_kwargs: Extra keyword arguments for :class:`HeartsCardPassEnvironment`
@@ -64,7 +75,8 @@ def train_both_agents(
 
     Examples:
         >>> playing_model, card_passing_model = train_both_agents(
-        >>>     agent_cls=MaskablePPO,
+        >>>     agent_cls_play=MaskablePPO,
+        >>>     agent_cls_card_pass=MaskablePPO,
         >>>     play_env_kwargs={'reward_setting': 'dense'},
         >>>     card_pass_env_kwargs={'eval_count': 10},
         >>>     log_path='training_logs',
@@ -78,21 +90,10 @@ def train_both_agents(
     Notes:
         - For PPO it is recommended to set :param:`opponents_update_freq`
           values and :param:`final_stage_len` to a multiple of PPO's update
-          frequency. Otherwise PPO will extend the training to fill its
+          frequency. Otherwise, PPO will extend the training to fill its
           buffer anyway.
     """
-    if random_state is None:
-        warnings.warn(
-            '`random_state` not set - consider using it for reproducibility',
-            UserWarning,
-        )
-    rng = np.random.default_rng(random_state)
-
-    def get_seed() -> int:
-        return int(rng.integers(999999))
-
-    play_ep_length = 13
-    card_pass_ep_length = 3
+    get_seed, log_path = pre_train_setup(log_path, random_state)
 
     play_env = HeartsPlayEnvironment(
         opponents_callbacks=[],
@@ -105,27 +106,28 @@ def train_both_agents(
         **card_pass_env_kwargs,
     )
 
-    if agent_cls == MaskablePPO:
-        play_n_steps = 2496  # 3x multiple of 832 = 64 * 13 (batch_size * episode_length)
-        print(f'PPO playing agent will update every {play_n_steps // play_ep_length} episodes')
+    if agent_cls_play == MaskablePPO:
+        print(f'PPO playing agent will update every {PPO_N_STEPS_PLAY // EPISODE_LENGTH_PLAY} episodes')
         playing_agent = MaskablePPO(
             'MlpPolicy', play_env,
-            n_steps=play_n_steps,
-            stats_window_size=2000,
-            seed=get_seed(),
-        )
-        card_pass_n_steps = 1536  # 8x multiple of 192 = 64 * 3 (batch_size * episode_length)
-        print(f'PPO card passing agent will update every {card_pass_n_steps // card_pass_ep_length} episodes')
-        card_passing_agent = MaskablePPO(
-            'MlpPolicy', card_pass_env,
-            n_steps=card_pass_n_steps,
-            stats_window_size=200,
+            n_steps=PPO_N_STEPS_PLAY,
+            stats_window_size=STATS_WINDOW_SIZE_PLAY,
             seed=get_seed(),
         )
     else:
-        raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
+        raise ValueError('Unsupported agent_cls_play value. Use MaskablePPO')
 
-    os.makedirs(log_path, exist_ok=True)
+    if agent_cls_card_pass == MaskablePPO:
+        print(f'PPO card passing agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
+        card_passing_agent = MaskablePPO(
+            'MlpPolicy', card_pass_env,
+            n_steps=PPO_N_STEPS_CARD_PASS,
+            stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
+            seed=get_seed(),
+        )
+    else:
+        raise ValueError('Unsupported agent_cls_card_pass value. Use MaskablePPO')
+
     play_env.card_passing_callbacks = [get_callback_from_agent(card_passing_agent)]
     card_pass_env.playing_callbacks = [get_callback_from_agent(playing_agent)]
 
@@ -152,11 +154,11 @@ def train_both_agents(
         play_env_eval_random,
         best_model_save_path=eval_log_path,
         log_path=eval_log_path,
-        eval_freq=eval_freq_episodes * play_ep_length,
+        eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,
         n_eval_episodes=n_eval_episodes,
     )
 
-    steps_per_stage = np.array(stages_lengths_episodes) * play_ep_length
+    steps_per_stage = np.array(stages_lengths_episodes) * EPISODE_LENGTH_PLAY
     print_start_training_info(steps_per_stage)
 
     for stage_no, stage_play_timesteps in enumerate(steps_per_stage.tolist(), 1):
@@ -182,7 +184,7 @@ def train_both_agents(
         ])
 
         # number of training timesteps for playing agent before card passing agent is tuned
-        card_pass_tune_interval = play_n_steps * 50
+        card_pass_tune_interval = PPO_N_STEPS_PLAY * 50
         n_card_pass_tunes = stage_play_timesteps // card_pass_tune_interval
         # in case card_pass_tune_interval is not a multiple of stage_play_timesteps
         extra_playing_timesteps_after = stage_play_timesteps - card_pass_tune_interval * n_card_pass_tunes
@@ -200,7 +202,7 @@ def train_both_agents(
             print(f'-> Switching to card passing agent ({swap_no}/{n_card_pass_tunes})')
             card_pass_env.playing_callbacks[0] = get_callback_from_agent(playing_agent)
             card_passing_agent.learn(
-                total_timesteps=card_pass_n_steps,
+                total_timesteps=PPO_N_STEPS_CARD_PASS,
                 reset_num_timesteps=False,
                 progress_bar=progress_bar,
             )

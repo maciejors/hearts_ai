@@ -1,5 +1,4 @@
 import os
-import warnings
 from typing import Type
 
 import numpy as np
@@ -14,6 +13,10 @@ from .common import (
     print_start_training_info,
     SupportedAlgorithm,
     update_self_play_clones,
+    pre_train_setup,
+    EPISODE_LENGTH_CARD_PASS,
+    PPO_N_STEPS_CARD_PASS,
+    STATS_WINDOW_SIZE_CARD_PASS,
 )
 from .opponents.callbacks import (
     get_callback_from_agent,
@@ -33,6 +36,9 @@ def train_card_passing_agent(
         random_state: int | None = None,
 ) -> SupportedAlgorithm:
     """
+    A single run for the card passing agent. Run in a loop to record multiple
+    runs.
+
     Args:
         agent_cls: Agent class
         playing_agent: A trained playing agent
@@ -72,20 +78,11 @@ def train_card_passing_agent(
         - For PPO it is recommended to set :param:`opponents_update_freq`
           values and :param:`final_stage_len` to a multiple of PPO's update
           frequency. It is set to 512 episodes.
-          Otherwise PPO will extend the training to fill its
+          Otherwise, PPO will extend the training to fill its
           buffer anyway.
     """
-    if random_state is None:
-        warnings.warn(
-            '`random_state` not set - consider using it for reproducibility',
-            UserWarning,
-        )
-    rng = np.random.default_rng(random_state)
+    get_seed, log_path = pre_train_setup(log_path, random_state)
 
-    def get_seed() -> int:
-        return int(rng.integers(999999))
-
-    ep_length = 3
     playing_callback = get_callback_from_agent(playing_agent)
     env = HeartsCardsPassEnvironment(
         opponents_callbacks=[],
@@ -94,20 +91,17 @@ def train_card_passing_agent(
     )
 
     if agent_cls == MaskablePPO:
-        n_steps = 1536  # 8x multiple of 192 = 64 * 3 (batch_size * episode_length)
-        print(f'PPO agent will update every {n_steps // ep_length} episodes')
+        print(f'PPO agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
         agent = MaskablePPO(
             'MlpPolicy', env,
-            n_steps=n_steps,
-            stats_window_size=500,
+            n_steps=PPO_N_STEPS_CARD_PASS,
+            stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
             seed=get_seed(),
         )
     else:
         raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
 
-    os.makedirs(log_path, exist_ok=True)
-
-    # in evaluation we are only concerned about the end result of the round, hence the sparse setting.
+    # in evaluation, we are only concerned about the end result of the round, hence the sparse setting.
     env_eval_random = Monitor(
         HeartsCardsPassEnvironment(
             opponents_callbacks=[
@@ -125,11 +119,11 @@ def train_card_passing_agent(
         env_eval_random,
         best_model_save_path=eval_log_path,
         log_path=eval_log_path,
-        eval_freq=eval_freq_episodes * ep_length,
+        eval_freq=eval_freq_episodes * EPISODE_LENGTH_CARD_PASS,
         n_eval_episodes=n_eval_episodes,
     )
 
-    steps_per_stage = np.array(stages_lengths_episodes) * ep_length
+    steps_per_stage = np.array(stages_lengths_episodes) * EPISODE_LENGTH_CARD_PASS
     print_start_training_info(steps_per_stage)
 
     for stage_no, stage_timesteps in enumerate(steps_per_stage.tolist(), 1):
