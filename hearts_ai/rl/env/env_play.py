@@ -141,8 +141,12 @@ class HeartsPlayEnvironment(gym.Env):
                 player_hand = self.core.hands[player_idx]
 
                 for _ in range(3):
-                    obs = create_cards_pass_env_obs(player_hand, picked_cards)
-                    action_masks = create_cards_pass_env_action_masks(player_hand, picked_cards)
+                    obs = create_cards_pass_env_obs(
+                        player_hand, picked_cards, self.core.pass_direction
+                    )
+                    action_masks = create_cards_pass_env_action_masks(
+                        player_hand, picked_cards, self.core.pass_direction
+                    )
                     action = card_passing_callback(obs, action_masks)
                     card_to_pass = action_to_card(action)
                     picked_cards.append(card_to_pass)

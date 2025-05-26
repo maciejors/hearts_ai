@@ -1,7 +1,7 @@
 import numpy as np
 from gymnasium.core import ObsType
 
-from hearts_ai.engine import HeartsCore, Suit, Card
+from hearts_ai.engine import HeartsCore, Suit, Card, PassDirection
 from hearts_ai.engine.utils import get_valid_plays
 from hearts_ai.rl.env.utils import card_to_idx
 
@@ -106,11 +106,12 @@ def create_play_env_action_masks_from_hearts_core(hearts_core: HeartsCore) -> np
 def create_cards_pass_env_obs(
         player_hand: list[Card],
         picked_cards: list[Card],
+        pass_direction: PassDirection,
 ) -> ObsType:
     """
     For details on the observation space refer to :class:`HeartsCardPassEnvironment`
     """
-    state = np.zeros(52, dtype=np.int8)
+    state = np.zeros(55, dtype=np.int8)
 
     cards_in_hand_idx = np.array([
         card_to_idx(card) for card in player_hand
@@ -122,12 +123,14 @@ def create_cards_pass_env_obs(
     ], dtype=np.int16)
     state[picked_cards_idx] = -1
 
+    state[52 + pass_direction.value] = 1
     return state
 
 
 def create_cards_pass_env_action_masks(
         player_hand: list[Card],
-        picked_cards: list[Card]
+        picked_cards: list[Card],
+        pass_direction: PassDirection,
 ) -> np.ndarray:
-    obs = create_cards_pass_env_obs(player_hand, picked_cards)
-    return np.array(obs == 1)
+    obs = create_cards_pass_env_obs(player_hand, picked_cards, pass_direction)
+    return np.array(obs[:52] == 1)

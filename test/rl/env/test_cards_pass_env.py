@@ -47,7 +47,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         **get_mock_params_for_hearts_core(),
     )
     @patch.multiple(
-        HeartsCardsPassEnvironment,
+        HeartsCardsPassEnvironment.State,
         hands=[cl(['2♣', '3♦']), [], [], []],
     )
     def test_reset_state(self):
@@ -56,36 +56,55 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         card2_idx = card_to_idx(c('3♦'))
         self.assertEqual(1, obs_reset[card1_idx], 'Agent should have 2♣ in its hand')
         self.assertEqual(1, obs_reset[card2_idx], 'Agent should have 3♦ in its hand')
-        self.assertEqual(2, np.sum(obs_reset), 'Agent should only have 2 cards in its hand')
+        self.assertEqual(2, np.sum(obs_reset[:52]), 'Agent should only have 2 cards in its hand')
 
     @patch.multiple(
         HeartsCore,
         **get_mock_params_for_hearts_core(),
-    )
-    @patch.multiple(
-        HeartsCardsPassEnvironment,
-        hands=[cl(['2♣', '3♦', '4♦']), [], [], []],
     )
     def test_step_state(self):
-        env, _ = get_sample_env()
-        card1_idx = card_to_idx(c('2♣'))
-        card2_idx = card_to_idx(c('3♦'))
-        card3_idx = card_to_idx(c('4♦'))
+        with patch.object(HeartsCardsPassEnvironment.State, 'hands', [cl(['2♣', '3♦', '4♦']), [], [], []]):
+            env, _ = get_sample_env()
+            card1_idx = card_to_idx(c('2♣'))
+            card2_idx = card_to_idx(c('3♦'))
+            card3_idx = card_to_idx(c('4♦'))
 
-        obs = env.step(card3_idx)[0]
+            obs = env.step(card3_idx)[0]
 
-        self.assertEqual(1, obs[card1_idx], 'Agent should have 2♣ in its hand')
-        self.assertEqual(1, obs[card2_idx], 'Agent should have 3♦ in its hand')
-        self.assertEqual(-1, obs[card3_idx], 'Agent should have 3♦ in its hand')
-        self.assertEqual(52 - 3, np.sum(obs == 0),
-                         'All other cards should have a value of 0 in the state')
+            self.assertEqual(1, obs[card1_idx], 'Agent should have 2♣ in its hand')
+            self.assertEqual(1, obs[card2_idx], 'Agent should have 3♦ in its hand')
+            self.assertEqual(-1, obs[card3_idx], 'Agent should have 4♦ as picked')
+            self.assertEqual(52 - 3, np.sum(obs[:52] == 0),
+                             'All other cards should have a value of 0 in the state')
+
+    @patch.multiple(
+        HeartsCore,
+        **get_mock_params_for_hearts_core(),
+    )
+    def test_state_pass_direction(self):
+        env, obs_reset_init = get_sample_env()
+
+        obs_reset_all = [obs_reset_init]
+        for i in range(3):
+            obs_reset_all.append(env.reset(seed=i)[0])
+
+        self.assertEqual(1, obs_reset_all[0][52],
+                         'Pass direction should be left after the first reset')
+        self.assertEqual(1, obs_reset_all[1][53],
+                         'Pass direction should be right after the second reset')
+        self.assertEqual(1, obs_reset_all[2][54],
+                         'Pass direction should be across after the third reset')
+        self.assertEqual(1, obs_reset_all[3][52],
+                         'Pass direction should be left after the fourth reset')
+        for i, obs_reset in enumerate(obs_reset_all):
+            self.assertEqual(1, np.sum(obs_reset[52:55]), 'Pass direction should be one-hot encoded')
 
     @patch.multiple(
         HeartsCore,
         **get_mock_params_for_hearts_core(),
     )
     @patch.multiple(
-        HeartsCardsPassEnvironment,
+        HeartsCardsPassEnvironment.State,
         hands=[cl(['2♣', '3♦']), [], [], []],
     )
     def test_action_mask_hand(self):
@@ -102,7 +121,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         **get_mock_params_for_hearts_core(),
     )
     @patch.multiple(
-        HeartsCardsPassEnvironment,
+        HeartsCardsPassEnvironment.State,
         hands=[cl(['2♣', '3♦']), [], [], []],
     )
     def test_action_mask_picked(self):
@@ -119,7 +138,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         **get_mock_params_for_hearts_core(),
     )
     @patch.multiple(
-        HeartsCardsPassEnvironment,
+        HeartsCardsPassEnvironment.State,
         hands=[cl(['2♣']), [], [], []],
     )
     def test_invalid_action_no_change(self):
@@ -140,7 +159,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         **get_mock_params_for_hearts_core(),
     )
     @patch.multiple(
-        HeartsCardsPassEnvironment,
+        HeartsCardsPassEnvironment.State,
         hands=[cl(['2♣', '3♣', '4♣']), [], [], []],
     )
     def test_terminated_after_cards_passed(self):
@@ -157,7 +176,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         **get_mock_params_for_hearts_core(),
     )
     @patch.multiple(
-        HeartsCardsPassEnvironment,
+        HeartsCardsPassEnvironment.State,
         hands=[cl(['2♣', '3♣', '4♣']), [], [], []],
     )
     def test_rewards(self):

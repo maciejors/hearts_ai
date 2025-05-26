@@ -1,11 +1,12 @@
 import warnings
+from dataclasses import dataclass, field
 from typing import TypeAlias, Any, SupportsFloat
 
 import gymnasium as gym
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-from hearts_ai.engine import Card, HeartsCore, HeartsRules
+from hearts_ai.engine import Card, HeartsCore, HeartsRules, PassDirection
 from .obs import (
     create_cards_pass_env_obs,
     create_cards_pass_env_action_masks,
@@ -45,7 +46,7 @@ class HeartsCardsPassEnvironment(gym.Env):
     shot the moon are values as -26.
 
     Args:
-        opponents_callbacks: Callbacks responsible for decision making of other
+        opponents_callbacks: Callbacks responsible for decision-making of other
             players. In a self-play environment, these should be snapshots of
             the learning agent. It should be either a list of 3 elements, each
             corresponding to each opponent clockwise, or a single object, in
@@ -66,6 +67,24 @@ class HeartsCardsPassEnvironment(gym.Env):
             inform the user when evaluations for either variant are identical
             10 times in a row.
     """
+
+    @dataclass
+    class State:
+        _pass_direction: PassDirection
+        _hands: list[list[Card]]
+        _picked_cards: list[Card] = field(default_factory=list)
+
+        @property
+        def pass_direction(self) -> PassDirection:
+            return self._pass_direction
+
+        @property
+        def hands(self) -> list[list[Card]]:
+            return self._hands
+
+        @property
+        def picked_cards(self) -> list[Card]:
+            return self._picked_cards
 
     def __init__(
             self,
@@ -94,17 +113,13 @@ class HeartsCardsPassEnvironment(gym.Env):
         self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(52,), dtype=np.int8)
 
         # properly set in reset()
-        self._hands: list[list[Card]] | None = None
-        self.picked_cards: list[Card] = []
-
-    @property
-    def hands(self) -> list[list[Card]]:
-        return [hand.copy() for hand in self._hands]
+        self.state: HeartsCardsPassEnvironment.State | None = None
 
     def _get_obs(self) -> ObsType:
         return create_cards_pass_env_obs(
-            player_hand=self.hands[0],
-            picked_cards=self.picked_cards,
+            player_hand=self.state.hands[0],
+            picked_cards=self.state.picked_cards,
+            pass_direction=self.state.pass_direction,
         )
 
     def reset(
@@ -119,9 +134,18 @@ class HeartsCardsPassEnvironment(gym.Env):
             random_state=int(self.np_random.integers(999999)),
         )
         core.next_round()
-        self._hands = core.hands
-        self.picked_cards = []
 
+        if self.state is None:
+            next_pass_direction = PassDirection.LEFT
+        else:
+            next_pass_direction = list(PassDirection)[self.state.pass_direction.value + 1]
+            if next_pass_direction == PassDirection.NO_PASSING:
+                next_pass_direction = PassDirection.LEFT
+
+        self.state = HeartsCardsPassEnvironment.State(
+            _pass_direction=next_pass_direction,
+            _hands=core.hands,
+        )
         return self._get_obs(), {}
 
     def __simulate_round(self, include_card_passing: bool) -> SupportsFloat:
@@ -135,19 +159,23 @@ class HeartsCardsPassEnvironment(gym.Env):
             random_state=int(self.np_random.integers(999999)),
         )
         hearts_core.next_round()
-        hearts_core.hands = self.hands
+        hearts_core.hands = [h.copy() for h in self.state.hands]
 
         if include_card_passing:
-            hearts_core.pick_cards_to_pass(0, self.picked_cards)
+            hearts_core.round_no = self.state.pass_direction.value + 1
+            hearts_core.pick_cards_to_pass(0, self.state.picked_cards)
 
             for opponent_player_idx, opponent_callback in enumerate(self.opponents_callbacks, 1):
-                opponent_hand = self.hands[opponent_player_idx]
+                opponent_hand = self.state.hands[opponent_player_idx]
                 opponent_picked_cards = []
                 for _ in range(3):
                     # opponents card pass
-                    obs = create_cards_pass_env_obs(opponent_hand, opponent_picked_cards)
+                    obs = create_cards_pass_env_obs(
+                        opponent_hand, opponent_picked_cards, self.state.pass_direction
+                    )
                     action_masks = create_cards_pass_env_action_masks(
-                        opponent_hand, opponent_picked_cards)
+                        opponent_hand, opponent_picked_cards, self.state.pass_direction
+                    )
                     action = opponent_callback(obs, action_masks)
                     card_to_pass = action_to_card(action)
                     opponent_picked_cards.append(card_to_pass)
@@ -202,13 +230,13 @@ class HeartsCardsPassEnvironment(gym.Env):
             self, action: ActType
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         card_to_pass = action_to_card(action)
-        if card_to_pass not in self.hands[0]:
+        if card_to_pass not in self.state.hands[0]:
             warnings.warn('Illegal action - the selected card is not on hand.'
                           'Environment state will not change')
             return self._get_obs(), 0, False, False, {}
 
-        self.picked_cards.append(card_to_pass)
-        if len(self.picked_cards) < 3:
+        self.state.picked_cards.append(card_to_pass)
+        if len(self.state.picked_cards) < 3:
             return self._get_obs(), 0, False, False, {}
 
         pts_with_passing = np.array([
@@ -227,4 +255,6 @@ class HeartsCardsPassEnvironment(gym.Env):
         return self._get_obs(), reward, True, False, {'is_success': reward > 0}
 
     def action_masks(self) -> np.ndarray:
-        return create_cards_pass_env_action_masks(self.hands[0], self.picked_cards)
+        return create_cards_pass_env_action_masks(
+            self.state.hands[0], self.state.picked_cards, self.state.pass_direction
+        )
