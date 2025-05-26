@@ -2,11 +2,9 @@ import os
 from typing import Type
 
 import numpy as np
-from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import LogEveryNTimesteps, CallbackList
 from stable_baselines3.common.logger import configure as configure_sb3logger
-from stable_baselines3.common.monitor import Monitor
 
 from hearts_ai.rl.env import HeartsPlayEnvironment
 from .common import (
@@ -14,12 +12,14 @@ from .common import (
     SupportedAlgorithm,
     update_self_play_clones,
     pre_train_setup,
+    create_eval_callback,
     EPISODE_LENGTH_PLAY,
     PPO_N_STEPS_PLAY,
     STATS_WINDOW_SIZE_PLAY,
 )
 from .opponents.callbacks import (
-    get_random_action_taking_callback
+    get_random_action_taking_callback,
+    rule_based_play_callback,
 )
 
 
@@ -96,22 +96,28 @@ def train_playing_agent(
         raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
 
     # sparse setting, because we only care about the end-of-round score
-    env_eval_random = Monitor(
+    eval_random_callback = create_eval_callback(
         HeartsPlayEnvironment(
-            opponents_callbacks=[get_random_action_taking_callback(random_state=get_seed())
-                                 for _ in range(3)],
+            opponents_callbacks=[
+                get_random_action_taking_callback(random_state=get_seed())
+                for _ in range(3)
+            ],
             reward_setting='sparse',
         ),
-        info_keywords=("is_success",),
-    )
-    env_eval_random.reset(seed=get_seed())
-    eval_random_log_path = os.path.join(log_path, 'eval')
-    eval_random_callback = MaskableEvalCallback(
-        env_eval_random,
-        best_model_save_path=eval_random_log_path,
-        log_path=eval_random_log_path,
+        eval_log_path=os.path.join(log_path, 'eval_random'),
         eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,
         n_eval_episodes=n_eval_episodes,
+        env_reset_seed=get_seed(),
+    )
+    eval_rule_based_callback = create_eval_callback(
+        HeartsPlayEnvironment(
+            opponents_callbacks=[rule_based_play_callback] * 3,
+            reward_setting='sparse',
+        ),
+        eval_log_path=os.path.join(log_path, 'eval_rule_based'),
+        eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,
+        n_eval_episodes=n_eval_episodes,
+        env_reset_seed=get_seed(),
     )
 
     steps_per_stage = np.array(stages_lengths_episodes) * EPISODE_LENGTH_PLAY
@@ -127,13 +133,11 @@ def train_playing_agent(
         logger = configure_sb3logger(log_subpath, ['csv'])
         agent.set_logger(logger)
 
-        log_callback = LogEveryNTimesteps(1)
-
         callbacks = CallbackList([
+            LogEveryNTimesteps(1),
             eval_random_callback,
-            log_callback,
+            eval_rule_based_callback,
         ])
-
         agent.learn(
             total_timesteps=stage_timesteps,
             reset_num_timesteps=False,

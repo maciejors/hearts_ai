@@ -7,6 +7,8 @@ from typing import TypeVar, Callable
 
 import numpy as np
 from sb3_contrib import MaskablePPO
+from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
+from stable_baselines3.common.monitor import Monitor
 
 from hearts_ai.rl.env import HeartsPlayEnvironment, HeartsCardsPassEnvironment
 
@@ -95,3 +97,21 @@ def pre_train_setup(log_path: str, random_state: int | None) -> tuple[Callable[[
     print(f'Logging to {log_path}')
 
     return get_seed, log_path
+
+
+def create_eval_callback(
+        env: SupportedEnvironment,
+        eval_log_path: str,
+        eval_freq: int,
+        n_eval_episodes: int,
+        env_reset_seed: int,
+) -> MaskableEvalCallback:
+    env_monitor = Monitor(env, info_keywords=("is_success",))
+    env_monitor.reset(seed=env_reset_seed)
+    return MaskableEvalCallback(
+        env_monitor,
+        best_model_save_path=eval_log_path,
+        log_path=eval_log_path,
+        eval_freq=eval_freq,
+        n_eval_episodes=n_eval_episodes,
+    )
