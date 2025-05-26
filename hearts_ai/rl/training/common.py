@@ -3,7 +3,7 @@ import re
 import time
 import warnings
 from datetime import datetime
-from typing import TypeVar, Callable
+from typing import TypeVar, Callable, Type
 
 import numpy as np
 from sb3_contrib import MaskablePPO
@@ -97,6 +97,39 @@ def pre_train_setup(log_path: str, random_state: int | None) -> tuple[Callable[[
     print(f'Logging to {log_path}')
 
     return get_seed, log_path
+
+
+def _create_ppo_agent(
+        env: SupportedEnvironment,
+        seed: int,
+) -> MaskablePPO:
+    if isinstance(env, HeartsPlayEnvironment):
+        print(f'PPO playing agent will update every {PPO_N_STEPS_PLAY // EPISODE_LENGTH_PLAY} episodes')
+        return MaskablePPO(
+            'MlpPolicy', env,
+            n_steps=PPO_N_STEPS_PLAY,
+            stats_window_size=STATS_WINDOW_SIZE_PLAY,
+            seed=seed,
+        )
+    if isinstance(env, HeartsCardsPassEnvironment):
+        print(f'PPO playing agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
+        return MaskablePPO(
+            'MlpPolicy', env,
+            n_steps=PPO_N_STEPS_CARD_PASS,
+            stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
+            seed=seed,
+        )
+    raise TypeError(f'Unsupported environment: {type(env)}')
+
+
+def create_agent(
+        agent_cls: Type[SupportedAlgorithm],
+        env: SupportedEnvironment,
+        seed: int,
+) -> SupportedAlgorithm:
+    if agent_cls == MaskablePPO:
+        return _create_ppo_agent(env, seed)
+    raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
 
 
 def create_eval_callback(

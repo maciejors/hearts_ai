@@ -12,10 +12,9 @@ from .common import (
     SupportedAlgorithm,
     update_self_play_clones,
     pre_train_setup,
+    create_agent,
     create_eval_callback,
     EPISODE_LENGTH_PLAY,
-    PPO_N_STEPS_PLAY,
-    STATS_WINDOW_SIZE_PLAY,
 )
 from .opponents.callbacks import (
     get_random_action_taking_callback,
@@ -83,17 +82,7 @@ def train_playing_agent(
         opponents_callbacks=[],
         **env_kwargs,
     )
-
-    if agent_cls == MaskablePPO:
-        print(f'PPO agent will update every {PPO_N_STEPS_PLAY // EPISODE_LENGTH_PLAY} episodes')
-        agent = MaskablePPO(
-            'MlpPolicy', env,
-            n_steps=PPO_N_STEPS_PLAY,
-            stats_window_size=STATS_WINDOW_SIZE_PLAY,
-            seed=get_seed(),
-        )
-    else:
-        raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
+    agent = create_agent(agent_cls, env, seed=get_seed())
 
     # sparse setting, because we only care about the end-of-round score
     eval_random_callback = create_eval_callback(

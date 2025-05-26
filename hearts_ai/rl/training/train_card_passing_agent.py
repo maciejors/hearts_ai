@@ -12,10 +12,9 @@ from .common import (
     SupportedAlgorithm,
     update_self_play_clones,
     pre_train_setup,
+    create_agent,
     create_eval_callback,
     EPISODE_LENGTH_CARD_PASS,
-    PPO_N_STEPS_CARD_PASS,
-    STATS_WINDOW_SIZE_CARD_PASS,
 )
 from .opponents.callbacks import (
     get_callback_from_agent,
@@ -89,17 +88,7 @@ def train_card_passing_agent(
         playing_callbacks=playing_callback,
         **env_kwargs,
     )
-
-    if agent_cls == MaskablePPO:
-        print(f'PPO agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
-        agent = MaskablePPO(
-            'MlpPolicy', env,
-            n_steps=PPO_N_STEPS_CARD_PASS,
-            stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
-            seed=get_seed(),
-        )
-    else:
-        raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
+    agent = create_agent(agent_cls, env, seed=get_seed())
 
     eval_random_callback = create_eval_callback(
         HeartsCardsPassEnvironment(

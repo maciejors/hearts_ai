@@ -12,13 +12,11 @@ from .common import (
     SupportedAlgorithm,
     update_self_play_clones,
     pre_train_setup,
+    create_agent,
     create_eval_callback,
     EPISODE_LENGTH_PLAY,
-    EPISODE_LENGTH_CARD_PASS,
     PPO_N_STEPS_PLAY,
     PPO_N_STEPS_CARD_PASS,
-    STATS_WINDOW_SIZE_PLAY,
-    STATS_WINDOW_SIZE_CARD_PASS,
 )
 from .opponents.callbacks import (
     get_callback_from_agent,
@@ -107,27 +105,8 @@ def train_both_agents(
         **card_pass_env_kwargs,
     )
 
-    if agent_cls_play == MaskablePPO:
-        print(f'PPO playing agent will update every {PPO_N_STEPS_PLAY // EPISODE_LENGTH_PLAY} episodes')
-        playing_agent = MaskablePPO(
-            'MlpPolicy', play_env,
-            n_steps=PPO_N_STEPS_PLAY,
-            stats_window_size=STATS_WINDOW_SIZE_PLAY,
-            seed=get_seed(),
-        )
-    else:
-        raise ValueError('Unsupported agent_cls_play value. Use MaskablePPO')
-
-    if agent_cls_card_pass == MaskablePPO:
-        print(f'PPO card passing agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
-        card_passing_agent = MaskablePPO(
-            'MlpPolicy', card_pass_env,
-            n_steps=PPO_N_STEPS_CARD_PASS,
-            stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
-            seed=get_seed(),
-        )
-    else:
-        raise ValueError('Unsupported agent_cls_card_pass value. Use MaskablePPO')
+    playing_agent = create_agent(agent_cls_play, play_env, seed=get_seed())
+    card_passing_agent = create_agent(agent_cls_card_pass, card_pass_env, seed=get_seed())
 
     play_env.card_passing_callbacks = [get_callback_from_agent(card_passing_agent)]
     card_pass_env.playing_callbacks = [get_callback_from_agent(playing_agent)]
