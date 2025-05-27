@@ -63,15 +63,15 @@ def _get_next_run_dir(log_folder: str) -> str:
         Absolute path to a directory for the next run.
     """
     if not os.path.isdir(log_folder):
-        next_run_no = 1
+        curr_max_run_no = 0
     else:
-        next_run_no = 1
+        curr_max_run_no = 0
         for subfolder_name in os.listdir(log_folder):
             if regex := re.fullmatch(r'run_(\d+)', subfolder_name):
                 found_run_no = int(regex.group(1))
-                next_run_no = max(next_run_no, found_run_no)
+                curr_max_run_no = max(curr_max_run_no, found_run_no)
 
-    next_run_subfolder = f'run_{next_run_no + 1}'
+    next_run_subfolder = f'run_{curr_max_run_no + 1}'
     return os.path.abspath(os.path.join(log_folder, next_run_subfolder))
 
 
@@ -92,11 +92,11 @@ def pre_train_setup(log_path: str, random_state: int | None) -> tuple[Callable[[
     def get_seed() -> int:
         return int(rng.integers(999999))
 
-    log_path = _get_next_run_dir(log_path)
-    os.makedirs(log_path, exist_ok=True)
-    print(f'Logging to {log_path}')
+    run_log_path = _get_next_run_dir(log_path)
+    os.makedirs(run_log_path, exist_ok=True)
+    print(f'Logging to {run_log_path}')
 
-    return get_seed, log_path
+    return get_seed, run_log_path
 
 
 def _create_ppo_agent(
