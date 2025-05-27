@@ -118,7 +118,7 @@ def train_card_passing_agent(
     print_start_training_info(steps_per_stage)
 
     for stage_no, stage_timesteps in enumerate(steps_per_stage.tolist(), 1):
-        print(f'## Beginning stage {stage_no} out of {len(steps_per_stage)}')
+        print(f'\n## Beginning stage {stage_no} out of {len(steps_per_stage)}')
         
         update_self_play_clones(env, agent)
         env.reset(seed=get_seed())

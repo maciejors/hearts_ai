@@ -149,7 +149,7 @@ def train_both_agents(
     print_start_training_info(steps_per_stage)
 
     for stage_no, stage_play_timesteps in enumerate(steps_per_stage.tolist(), 1):
-        print(f'## Beginning stage {stage_no} out of {len(steps_per_stage)}')
+        print(f'\n## Beginning stage {stage_no} out of {len(steps_per_stage)}')
 
         update_self_play_clones(play_env, playing_agent)
         update_self_play_clones(card_pass_env, card_passing_agent)
