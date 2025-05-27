@@ -1,6 +1,7 @@
 import functools
 import os
 from abc import ABC
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -23,6 +24,7 @@ def plot_wrapper(
 
     Features:
     - Automatically supply ``ax`` parameter to the method as the first parameter
+    - Automatically tweak fig_id and fig_title based on ``eval_id`` parameter (if supplied)
     - Save/show figure based on PlotMaker settings
     - Add labels for axes
     """
@@ -51,6 +53,13 @@ def plot_wrapper(
             if self.is_single_results and legend is not None:
                 legend.remove()
 
+            nonlocal fig_id
+            nonlocal fig_title
+            eval_id: str | None = kwargs.get('eval_id')
+            if eval_id is not None:
+                fig_id += f'_{eval_id}'
+                fig_title += f' ({eval_id.replace('_', ' ')})'
+
             if self.folder:
                 fig.savefig(os.path.join(self.folder, f'{fig_id}.png'))
             if self.show:
@@ -75,7 +84,7 @@ class PlotMaker(ABC):
             used in plots legends, they can be for example model names.
         folder: A directory where the plots will be saved. Set to ``None``
             to disable saving
-        show: Whether or not to call plt.show() for each plot
+        show: Whether to call plt.show() for each plot
     """
 
     def __init__(
@@ -97,21 +106,29 @@ class PlotMaker(ABC):
             self.is_single_results = False
 
         training_logs_to_concat = []
-        eval_results_to_concat = []
+        eval_results_to_concat = {
+            'random': [],
+            'rule_based': [],
+        }
         common_stages_ends = list(results.values())[0].stages_ends
 
         for model_name, r in results.items():
             training_logs_to_concat.append(
-                r.training_logs_df.assign(model=model_name)
+                r.training_logs.assign(model=model_name)
             )
-            eval_results_to_concat.append(
-                r.eval_results_df.assign(model=model_name)
-            )
+            for eval_id, eval_results_df in r.eval_results.items():
+                eval_results_to_concat[eval_id].append(
+                    eval_results_df.assign(model=model_name)
+                )
+
             if r.stages_ends != common_stages_ends:
                 common_stages_ends = None
 
-        self._combined_training_logs_df = pd.concat(training_logs_to_concat, ignore_index=True)
-        self._combined_eval_results_df = pd.concat(eval_results_to_concat, ignore_index=True)
+        self._combined_training_logs = pd.concat(training_logs_to_concat, ignore_index=True)
+        self._combined_eval_results = {
+            eval_id: pd.concat(dataframe_list, ignore_index=True)
+            for eval_id, dataframe_list in eval_results_to_concat.items()
+        }
         self.common_stages_ends = common_stages_ends
 
     @plot_wrapper(
@@ -123,10 +140,11 @@ class PlotMaker(ABC):
     def _plot_training_rewards(self, ax: plt.Axes):
         sns.lineplot(
             ax=ax,
-            data=self._combined_training_logs_df,
+            data=self._combined_training_logs,
             x='timestep',
             y='ep_rew_mean',
             hue='model',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
@@ -137,7 +155,7 @@ class PlotMaker(ABC):
         ylabel='Success rate (%, rolling mean)',
     )
     def _plot_training_success_rate(self, ax: plt.Axes):
-        df = self._combined_training_logs_df \
+        df = self._combined_training_logs \
             .assign(success_perc=lambda x: x['success_rate'] * 100)
         sns.lineplot(
             ax=ax,
@@ -145,6 +163,7 @@ class PlotMaker(ABC):
             x='timestep',
             y='success_perc',
             hue='model',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
@@ -165,9 +184,9 @@ class PlotMakerPlaying(PlotMaker):
         xlabel='Training timestep',
         ylabel='Mean points scored',
     )
-    def _plot_eval_results_mean(self, ax: plt.Axes):
-        mean_eval_df = self._combined_eval_results_df \
-            .groupby(['model', 'train_timestep']) \
+    def _plot_eval_results_mean(self, ax: plt.Axes, *, eval_id: str):
+        mean_eval_df = self._combined_eval_results[eval_id] \
+            .groupby(['model', 'train_timestep', 'run_id']) \
             .mean() \
             .reset_index() \
             .assign(points=lambda df: -df['reward'])
@@ -180,6 +199,7 @@ class PlotMakerPlaying(PlotMaker):
             y='points',
             hue='model',
             marker='o',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
@@ -189,9 +209,9 @@ class PlotMakerPlaying(PlotMaker):
         xlabel='Training timestep',
         ylabel='% of rounds won',
     )
-    def _plot_eval_success_rate_mean(self, ax: plt.Axes):
-        mean_eval_df = self._combined_eval_results_df \
-            .groupby(['model', 'train_timestep']) \
+    def _plot_eval_success_rate_mean(self, ax: plt.Axes, *, eval_id: str):
+        mean_eval_df = self._combined_eval_results[eval_id] \
+            .groupby(['model', 'train_timestep', 'run_id']) \
             .mean() \
             .reset_index()
         mean_eval_df = mean_eval_df[['model', 'train_timestep', 'is_success']]
@@ -204,6 +224,7 @@ class PlotMakerPlaying(PlotMaker):
             y='is_success',
             hue='model',
             marker='o',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
@@ -213,11 +234,11 @@ class PlotMakerPlaying(PlotMaker):
         xlabel='Training timestep',
         ylabel='% of rounds with >=13 pts',
     )
-    def _plot_eval_rounds_with_ge13(self, ax: plt.Axes):
-        df = self._combined_eval_results_df \
+    def _plot_eval_rounds_with_ge13(self, ax: plt.Axes, *, eval_id: str):
+        df = self._combined_eval_results[eval_id] \
             .assign(points=lambda x: -x['reward']) \
             .assign(is_pts_ge13=lambda x: (x['points'] >= 13) * 100)
-        df = df.groupby(['model', 'train_timestep']) \
+        df = df.groupby(['model', 'train_timestep', 'run_id']) \
             .mean() \
             .reset_index()
         sns.lineplot(
@@ -227,6 +248,7 @@ class PlotMakerPlaying(PlotMaker):
             y='is_pts_ge13',
             hue='model',
             marker='o',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
@@ -236,10 +258,10 @@ class PlotMakerPlaying(PlotMaker):
         xlabel='Training timestep',
         ylabel='# of successful moon shots',
     )
-    def _plot_eval_successful_moon_shots(self, ax: plt.Axes):
-        df = self._combined_eval_results_df \
+    def _plot_eval_successful_moon_shots(self, ax: plt.Axes, *, eval_id: str):
+        df = self._combined_eval_results[eval_id] \
             .assign(is_agent_moon_shot=lambda x: x['reward'] == 26)
-        df = df.groupby(['model', 'train_timestep']) \
+        df = df.groupby(['model', 'train_timestep', 'run_id']) \
             .sum() \
             .reset_index()
         sns.lineplot(
@@ -249,6 +271,7 @@ class PlotMakerPlaying(PlotMaker):
             y='is_agent_moon_shot',
             hue='model',
             marker='o',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
@@ -258,10 +281,10 @@ class PlotMakerPlaying(PlotMaker):
         xlabel='Training timestep',
         ylabel='# of moon shots against',
     )
-    def _plot_eval_moon_shots_against(self, ax: plt.Axes):
-        df = self._combined_eval_results_df \
+    def _plot_eval_moon_shots_against(self, ax: plt.Axes, *, eval_id: str):
+        df = self._combined_eval_results[eval_id] \
             .assign(is_opponent_moon_shot=lambda x: x['reward'] == -26)
-        df = df.groupby(['model', 'train_timestep']) \
+        df = df.groupby(['model', 'train_timestep', 'run_id']) \
             .sum() \
             .reset_index()
         sns.lineplot(
@@ -271,15 +294,16 @@ class PlotMakerPlaying(PlotMaker):
             y='is_opponent_moon_shot',
             hue='model',
             marker='o',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
-    def plot_eval(self):
-        self._plot_eval_results_mean()
-        self._plot_eval_success_rate_mean()
-        self._plot_eval_rounds_with_ge13()
-        self._plot_eval_successful_moon_shots()
-        self._plot_eval_moon_shots_against()
+    def plot_eval(self, eval_id: Literal['random', 'rule_based']):
+        self._plot_eval_results_mean(eval_id=eval_id)
+        self._plot_eval_success_rate_mean(eval_id=eval_id)
+        self._plot_eval_rounds_with_ge13(eval_id=eval_id)
+        self._plot_eval_successful_moon_shots(eval_id=eval_id)
+        self._plot_eval_moon_shots_against(eval_id=eval_id)
 
 
 class PlotMakerCardPassing(PlotMaker):
@@ -294,8 +318,8 @@ class PlotMakerCardPassing(PlotMaker):
         xlabel='Training timestep',
         ylabel='Mean reward',
     )
-    def _plot_eval_results_mean(self, ax: plt.Axes):
-        mean_eval_df = self._combined_eval_results_df \
+    def _plot_eval_results_mean(self, ax: plt.Axes, *, eval_id: str):
+        mean_eval_df = self._combined_eval_results[eval_id] \
             .groupby(['model', 'train_timestep']) \
             .mean() \
             .reset_index()
@@ -317,8 +341,8 @@ class PlotMakerCardPassing(PlotMaker):
         xlabel='Training timestep',
         ylabel='Success rate (%)',
     )
-    def _plot_eval_success_rate_mean(self, ax: plt.Axes):
-        mean_eval_df = self._combined_eval_results_df \
+    def _plot_eval_success_rate_mean(self, ax: plt.Axes, *, eval_id: str):
+        mean_eval_df = self._combined_eval_results[eval_id] \
             .groupby(['model', 'train_timestep']) \
             .mean() \
             .reset_index()
@@ -335,6 +359,6 @@ class PlotMakerCardPassing(PlotMaker):
         )
         ax.grid(axis='y')
 
-    def plot_eval(self):
-        self._plot_eval_results_mean()
-        self._plot_eval_success_rate_mean()
+    def plot_eval(self, eval_id: Literal['random', 'rule_based']):
+        self._plot_eval_results_mean(eval_id=eval_id)
+        self._plot_eval_success_rate_mean(eval_id=eval_id)

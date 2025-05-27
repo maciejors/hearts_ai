@@ -6,8 +6,8 @@ import pandas as pd
 from .training_results import TrainingResults
 
 
-def _load_eval_results(log_path: str) -> pd.DataFrame:
-    eval_results_path = os.path.join(log_path, 'eval', 'evaluations.npz')
+def _load_eval_results_single_run(run_log_path: str, eval_id: str) -> pd.DataFrame:
+    eval_results_path = os.path.join(run_log_path, f'eval_{eval_id}', 'evaluations.npz')
     eval_results = np.load(eval_results_path)
 
     eval_no_col = []
@@ -37,16 +37,16 @@ def _load_eval_results(log_path: str) -> pd.DataFrame:
     return eval_results_df
 
 
-def _load_training_logs(log_path: str) -> tuple[pd.DataFrame, list[int]]:
+def _load_training_logs_single_run(run_log_path: str) -> tuple[pd.DataFrame, list[int]]:
     all_dfs = []
 
-    for stage_subdir in os.listdir(log_path):
+    for stage_subdir in os.listdir(run_log_path):
         if not stage_subdir.startswith('stage_'):
             continue
 
         stage_no = int(stage_subdir.split('_')[-1])
         raw_logs_df = pd.read_csv(
-            os.path.join(log_path, stage_subdir, 'progress.csv')
+            os.path.join(run_log_path, stage_subdir, 'progress.csv')
         )
         ep_length = int(raw_logs_df['rollout/ep_len_mean'].iloc[-1])
 
@@ -80,13 +80,33 @@ def _load_training_logs(log_path: str) -> tuple[pd.DataFrame, list[int]]:
 
 def load_training_results(log_path: str) -> TrainingResults:
     """
-    Loads all results from a single training process
+    Loads all results from a single training process with multiple runs
     """
-    training_logs_df, stages_ends = _load_training_logs(log_path)
-    eval_results_df = _load_eval_results(log_path)
+    training_logs_all_dfs: list[pd.DataFrame] = []
+    eval_results_all_dfs: dict[str, list[pd.DataFrame]] = {
+        'random': [],
+        'rule_based': [],
+    }
+    stages_ends: list[int] = []
+
+    for run_folder_name in os.listdir(log_path):
+        run_log_path = os.path.join(log_path, run_folder_name)
+
+        # stages_ends should be the same for every run
+        training_logs_df, stages_ends = _load_training_logs_single_run(run_log_path)
+        training_logs_df['run_id'] = run_folder_name
+        training_logs_all_dfs.append(training_logs_df)
+
+        for eval_id in eval_results_all_dfs:
+            eval_results_df = _load_eval_results_single_run(run_log_path, eval_id)
+            eval_results_df['run_id'] = run_folder_name
+            eval_results_all_dfs[eval_id].append(eval_results_df)
 
     return TrainingResults(
-        eval_results_df=eval_results_df,
-        training_logs_df=training_logs_df,
+        training_logs=pd.concat(training_logs_all_dfs, ignore_index=True),
+        eval_results={
+            eval_id: pd.concat(dataframe_list, ignore_index=True)
+            for eval_id, dataframe_list in eval_results_all_dfs.items()
+        },
         stages_ends=stages_ends,
     )
