@@ -92,6 +92,9 @@ def load_training_results(log_path: str) -> TrainingResults:
     for run_folder_name in os.listdir(log_path):
         run_log_path = os.path.join(log_path, run_folder_name)
 
+        if not os.path.exists(os.path.join(run_log_path, 'finished')):
+            continue  # means this run is in progress
+
         # stages_ends should be the same for every run
         training_logs_df, stages_ends = _load_training_logs_single_run(run_log_path)
         training_logs_df['run_id'] = run_folder_name

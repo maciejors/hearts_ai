@@ -138,4 +138,6 @@ def train_card_passing_agent(
             callback=callbacks,
             progress_bar=progress_bar,
         )
+
+    open(os.path.join(log_path, 'finished'), 'a').close()
     return agent

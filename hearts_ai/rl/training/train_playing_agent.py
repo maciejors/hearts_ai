@@ -133,4 +133,6 @@ def train_playing_agent(
             callback=callbacks,
             progress_bar=progress_bar,
         )
+
+    open(os.path.join(log_path, 'finished'), 'a').close()
     return agent

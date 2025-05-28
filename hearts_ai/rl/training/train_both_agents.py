@@ -203,4 +203,5 @@ def train_both_agents(
                 progress_bar=progress_bar,
             )
 
+    open(os.path.join(log_path, 'finished'), 'a').close()
     return playing_agent, card_passing_agent
