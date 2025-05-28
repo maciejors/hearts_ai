@@ -53,17 +53,17 @@ def plot_wrapper(
             if self.is_single_results and legend is not None:
                 legend.remove()
 
-            nonlocal fig_id
-            nonlocal fig_title
+            fig_id_ = fig_id
+            fig_title_ = fig_title
             eval_id: str | None = kwargs.get('eval_id')
             if eval_id is not None:
-                fig_id += f'_{eval_id}'
-                fig_title += f' ({eval_id.replace('_', ' ')})'
+                fig_id_ += f'_{eval_id}'
+                fig_title_ += f' ({eval_id.replace('_', ' ')})'
 
             if self.folder:
-                fig.savefig(os.path.join(self.folder, f'{fig_id}.png'))
+                fig.savefig(os.path.join(self.folder, f'{fig_id_}.png'))
             if self.show:
-                ax.set_title(fig_title)
+                ax.set_title(fig_title_)
                 plt.show()
 
             return result
