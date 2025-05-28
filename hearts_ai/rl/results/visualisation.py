@@ -18,6 +18,7 @@ def plot_wrapper(
         fig_title: str,
         xlabel: str,
         ylabel: str,
+        baseline_y: float | None = None,
 ):
     """
     A decorator for all plots
@@ -27,6 +28,7 @@ def plot_wrapper(
     - Automatically tweak fig_id and fig_title based on ``eval_id`` parameter (if supplied)
     - Save/show figure based on PlotMaker settings
     - Add labels for axes
+    - Display a horizontal dotted line for baseline value (optional)
     """
 
     def decorator(method):
@@ -48,6 +50,13 @@ def plot_wrapper(
                         color='black',
                         linewidth=0.5,
                     )
+            if baseline_y is not None:
+                ax.axhline(
+                    y=baseline_y,
+                    linestyle='--',
+                    color='black',
+                    linewidth=2,
+                )
 
             legend = ax.get_legend()
             if self.is_single_results and legend is not None:
@@ -183,6 +192,7 @@ class PlotMakerPlaying(PlotMaker):
         fig_title='Mean points scored in evaluations',
         xlabel='Training timestep',
         ylabel='Mean points scored',
+        baseline_y=6.25,
     )
     def _plot_eval_results_mean(self, ax: plt.Axes, *, eval_id: str):
         mean_eval_df = self._combined_eval_results[eval_id] \
@@ -208,6 +218,7 @@ class PlotMakerPlaying(PlotMaker):
         fig_title='Rounds with fewest points in evaluations',
         xlabel='Training timestep',
         ylabel='% of rounds won',
+        baseline_y=25,
     )
     def _plot_eval_success_rate_mean(self, ax: plt.Axes, *, eval_id: str):
         mean_eval_df = self._combined_eval_results[eval_id] \
@@ -317,6 +328,7 @@ class PlotMakerCardPassing(PlotMaker):
         fig_title='Mean reward in evaluations',
         xlabel='Training timestep',
         ylabel='Mean reward',
+        baseline_y=0,
     )
     def _plot_eval_results_mean(self, ax: plt.Axes, *, eval_id: str):
         mean_eval_df = self._combined_eval_results[eval_id] \
@@ -340,6 +352,7 @@ class PlotMakerCardPassing(PlotMaker):
         fig_title='Rounds where passing cards reduced points scored',
         xlabel='Training timestep',
         ylabel='Success rate (%)',
+        baseline_y=25,
     )
     def _plot_eval_success_rate_mean(self, ax: plt.Axes, *, eval_id: str):
         mean_eval_df = self._combined_eval_results[eval_id] \
