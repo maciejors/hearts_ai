@@ -181,7 +181,7 @@ class HeartsPlayEnvironment(gym.Env):
         if is_round_finished and current_round_points_collected[0] == 26:
             return 26
         # someone else has shot the moon
-        if is_round_finished and any([p == 26 for p in current_round_points_collected]):
+        if is_round_finished and 26 in current_round_points_collected:
             return -26
 
         sign = -2 * is_trick_taken + 1
@@ -197,7 +197,7 @@ class HeartsPlayEnvironment(gym.Env):
             return 0
         if current_round_points_collected[0] == 26:
             return 26
-        if any([p == 26 for p in current_round_points_collected]):
+        if 26 in current_round_points_collected:
             return -26
         return -current_round_points_collected[0]
 

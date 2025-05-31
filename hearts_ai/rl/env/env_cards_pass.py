@@ -72,8 +72,8 @@ class HeartsCardsPassEnvironment(gym.Env):
         'opponents_callbacks',
         'playing_callbacks',
         'action_space',
-        'observation_space'
-        'supress_deterministic_eval_warn',
+        'observation_space',
+        'suppress_deterministic_eval_warn',
         'eval_count',
         'state',
         '__times_consecutive_eval_identical',
@@ -117,11 +117,11 @@ class HeartsCardsPassEnvironment(gym.Env):
             raise ValueError('Unsupported eval_count value. It needs to be either an integer,'
                              'or a two-element list.')
 
-        self.supress_deterministic_eval_warn = supress_deterministic_eval_warn
+        self.suppress_deterministic_eval_warn = supress_deterministic_eval_warn
         self.__times_consecutive_eval_identical = [0, 0]
 
         self.action_space = gym.spaces.Discrete(52)
-        self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(52,), dtype=np.int8)
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(55,), dtype=np.int8)
 
         # properly set in reset()
         self.state: HeartsCardsPassEnvironment.State | None = None
@@ -244,6 +244,11 @@ class HeartsCardsPassEnvironment(gym.Env):
                           'Environment state will not change')
             return self._get_obs(), 0, False, False, {}
 
+        if card_to_pass in self.state.picked_cards:
+            warnings.warn('Illegal action - the selected card is already picked.'
+                          'Environment state will not change')
+            return self._get_obs(), 0, False, False, {}
+
         self.state.picked_cards.append(card_to_pass)
         if len(self.state.picked_cards) < 3:
             return self._get_obs(), 0, False, False, {}
@@ -257,7 +262,7 @@ class HeartsCardsPassEnvironment(gym.Env):
             for _ in range(self.eval_count[1])
         ])
 
-        if not self.supress_deterministic_eval_warn:
+        if not self.suppress_deterministic_eval_warn:
             self.__handle_deterministic_eval_check(pts_with_passing, pts_no_passing)
 
         reward = pts_with_passing.mean() - pts_no_passing.mean()
