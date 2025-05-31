@@ -84,7 +84,7 @@ class HeartsPlayEnvironment(gym.Env):
         'opponents_callbacks',
         'card_passing_callbacks',
         'action_space',
-        'observation_space'
+        'observation_space',
         'reward_setting',
         'round',
     ]
