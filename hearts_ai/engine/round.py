@@ -27,6 +27,21 @@ class HeartsRound:
         random_state: Random seed for reproducibility
     """
 
+    __slots__ = [
+        '_rng',
+        'rules',
+        '_pass_direction',
+        '_hands',
+        '_taken_cards',
+        '_played_cards',
+        'trick_no',
+        'are_hearts_broken',
+        '_trick_starting_player_idx',
+        '_current_trick',
+        '__cards_to_pass',
+        'are_cards_passed',
+    ]
+
     def __init__(self,
                  rules: HeartsRules = HeartsRules(),
                  pass_direction: PassDirection | None = None,

@@ -6,7 +6,7 @@ import numpy as np
 from .constants import Suit
 
 
-@dataclass
+@dataclass(slots=True)
 class Card:
     """
     Args:
@@ -43,6 +43,8 @@ class Deck:
     Standard 52 cards deck.
     Upon creating the object the deck is automatically shuffled
     """
+
+    __slots__ = ['_rng', '_cards', '_cards_left']
 
     def __init__(self, random_state: int | None = None):
         self._rng = np.random.default_rng(random_state)

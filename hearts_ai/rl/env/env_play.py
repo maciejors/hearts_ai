@@ -80,6 +80,15 @@ class HeartsPlayEnvironment(gym.Env):
             training the card passing agent and the playing agent simultaneously.
     """
 
+    __slots__ = [
+        'opponents_callbacks',
+        'card_passing_callbacks',
+        'action_space',
+        'observation_space'
+        'reward_setting',
+        'round',
+    ]
+
     def __init__(
             self,
             opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],

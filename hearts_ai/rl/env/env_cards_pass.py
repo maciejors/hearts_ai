@@ -68,7 +68,18 @@ class HeartsCardsPassEnvironment(gym.Env):
             10 times in a row.
     """
 
-    @dataclass
+    __slots__ = [
+        'opponents_callbacks',
+        'playing_callbacks',
+        'action_space',
+        'observation_space'
+        'supress_deterministic_eval_warn',
+        'eval_count',
+        'state',
+        '__times_consecutive_eval_identical',
+    ]
+
+    @dataclass(slots=True)
     class State:
         _pass_direction: PassDirection
         _hands: list[list[Card]]
