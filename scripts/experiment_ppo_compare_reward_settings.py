@@ -2,7 +2,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 
 from hearts_ai.rl.training import train_playing_agent
 
-for i in range(5):
+for i in range(10):
     train_playing_agent(
         agent_cls=MaskablePPO,
         env_kwargs={'reward_setting': 'dense'},
