@@ -34,7 +34,7 @@ def plot_wrapper(
     def decorator(method):
         @functools.wraps(method)
         def wrapper(self: 'PlotMakerPlaying', *args, **kwargs):
-            fig, ax = plt.subplots(figsize=(10, 5), dpi=120)
+            fig, ax = plt.subplots(figsize=(10, 4), dpi=120)
 
             result = method(self, ax, *args, **kwargs)
 
