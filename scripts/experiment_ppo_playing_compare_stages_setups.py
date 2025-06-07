@@ -13,7 +13,7 @@ for i in range(10):
         eval_freq_episodes=10000,
         n_eval_episodes=10000,
         progress_bar=True,
-        random_state=28,
+        random_state=i,
     )
     train_playing_agent(
         agent_cls=MaskablePPO,
@@ -23,7 +23,7 @@ for i in range(10):
         eval_freq_episodes=10000,
         n_eval_episodes=10000,
         progress_bar=True,
-        random_state=28,
+        random_state=i,
     )
     train_playing_agent(
         agent_cls=MaskablePPO,
@@ -33,5 +33,5 @@ for i in range(10):
         eval_freq_episodes=10000,
         n_eval_episodes=10000,
         progress_bar=True,
-        random_state=28,
+        random_state=i,
     )
