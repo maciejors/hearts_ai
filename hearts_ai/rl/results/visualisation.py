@@ -34,7 +34,7 @@ def plot_wrapper(
     def decorator(method):
         @functools.wraps(method)
         def wrapper(self: 'PlotMakerPlaying', *args, **kwargs):
-            fig, ax = plt.subplots(figsize=(12, 5))
+            fig, ax = plt.subplots(figsize=(10, 5), dpi=120)
 
             result = method(self, ax, *args, **kwargs)
 
@@ -215,7 +215,7 @@ class PlotMakerPlaying(PlotMaker):
 
     @plot_wrapper(
         fig_id='eval_success_rate_mean',
-        fig_title='Rounds with fewest points in evaluations',
+        fig_title='Rounds with the fewest points in evaluations',
         xlabel='Training timestep',
         ylabel='% of rounds won',
         baseline_y=25,
