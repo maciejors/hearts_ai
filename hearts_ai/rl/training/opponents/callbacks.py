@@ -95,4 +95,5 @@ def rule_based_card_pass_callback(obs: ObsType, _: np.ndarray) -> ActType:
     # this is computed three times but for the same hand will return the same result every time
     # it is not the most optimal but is clearer and easier to implement
     selected_cards = select_cards_to_pass_rule_based(hand, direction)
-    return selected_cards[already_picked_count]
+    card_to_pass = selected_cards[already_picked_count]
+    return card_to_idx(card_to_pass)
