@@ -3,7 +3,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from hearts_ai.rl.training import train_card_passing_agent
 
 best_playing_agent = MaskablePPO.load(
-    'output/logs/ppo_playing_compare_stages_setups/every_192x100/run_8/eval/best_model'
+    'output/logs/ppo_playing_compare_stages_setups/every_192x100/run_8/eval_rule_based/best_model'
 )
 for i in range(10):
     train_card_passing_agent(
