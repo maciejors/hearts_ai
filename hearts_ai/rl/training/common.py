@@ -112,7 +112,7 @@ def _create_ppo_agent(
             seed=seed,
         )
     if isinstance(env, HeartsCardsPassEnvironment):
-        print(f'PPO playing agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
+        print(f'PPO card passing agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
         return MaskablePPO(
             'MlpPolicy', env,
             n_steps=PPO_N_STEPS_CARD_PASS,
