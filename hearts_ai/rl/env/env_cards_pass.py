@@ -101,7 +101,7 @@ class HeartsCardsPassEnvironment(gym.Env):
             self,
             opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
             playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
-            eval_count: int | list[int] = 15,
+            eval_count: int | list[int] = 20,
             supress_deterministic_eval_warn: bool = False,
     ):
         super().__init__()
