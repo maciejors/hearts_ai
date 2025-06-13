@@ -15,7 +15,7 @@ from hearts_ai.rl.env import HeartsPlayEnvironment, HeartsCardsPassEnvironment
 EPISODE_LENGTH_PLAY = 13
 EPISODE_LENGTH_CARD_PASS = 3
 STATS_WINDOW_SIZE_PLAY = 2000
-STATS_WINDOW_SIZE_CARD_PASS = 500
+STATS_WINDOW_SIZE_CARD_PASS = 1000
 PPO_N_STEPS_PLAY = 2496  # 3x multiple of 832 = 64 * 13 (batch_size * episode_length)
 PPO_N_STEPS_CARD_PASS = 1536  # 8x multiple of 192 = 64 * 3 (batch_size * episode_length)
 
