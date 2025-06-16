@@ -332,7 +332,7 @@ class PlotMakerCardPassing(PlotMaker):
     )
     def _plot_eval_results_mean(self, ax: plt.Axes, *, eval_id: str):
         mean_eval_df = self._combined_eval_results[eval_id] \
-            .groupby(['model', 'train_timestep']) \
+            .groupby(['model', 'train_timestep', 'run_id']) \
             .mean() \
             .reset_index()
         mean_eval_df = mean_eval_df[['model', 'train_timestep', 'reward']]
@@ -344,6 +344,7 @@ class PlotMakerCardPassing(PlotMaker):
             y='reward',
             hue='model',
             marker='o',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
@@ -356,7 +357,7 @@ class PlotMakerCardPassing(PlotMaker):
     )
     def _plot_eval_success_rate_mean(self, ax: plt.Axes, *, eval_id: str):
         mean_eval_df = self._combined_eval_results[eval_id] \
-            .groupby(['model', 'train_timestep']) \
+            .groupby(['model', 'train_timestep', 'run_id']) \
             .mean() \
             .reset_index()
         mean_eval_df = mean_eval_df[['model', 'train_timestep', 'is_success']]
@@ -369,6 +370,7 @@ class PlotMakerCardPassing(PlotMaker):
             y='is_success',
             hue='model',
             marker='o',
+            errorbar='sd',
         )
         ax.grid(axis='y')
 
