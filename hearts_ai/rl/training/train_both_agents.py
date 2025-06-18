@@ -33,6 +33,7 @@ def train_both_agents(
         card_pass_env_kwargs: dict,
         log_path: str,
         stages_lengths_episodes: list[int],
+        swap_period_multipl: int,
         eval_freq_episodes: int = 10000,
         n_eval_episodes: int = 10000,
         progress_bar: bool = False,
@@ -62,6 +63,11 @@ def train_both_agents(
             training will proceed for another ``k2`` episodes before terminating.
             If this is a one-element list, the opponents will not be updated
             at all during training.
+        swap_period_multipl: Specifies how often playing and card passing
+            agents are swapped. The playing agent trains for 
+            `PPO_N_STEPS_PLAY`*`swap_period_multipl` timesteps, after 
+            which the card passing agent trains for `PPO_N_STEPS_CARD_PASS`
+            timesteps.
         eval_freq_episodes: how often to evaluate the agents (in episodes).
         n_eval_episodes: how many episodes to run in a single evaluation.
         progress_bar:
@@ -170,7 +176,7 @@ def train_both_agents(
         ])
 
         # number of training timesteps for playing agent before card passing agent is tuned
-        card_pass_tune_interval = PPO_N_STEPS_PLAY * 50
+        card_pass_tune_interval = PPO_N_STEPS_PLAY * swap_period_multipl
         n_card_pass_tunes = stage_play_timesteps // card_pass_tune_interval
         # in case card_pass_tune_interval is not a multiple of stage_play_timesteps
         extra_playing_timesteps_after = stage_play_timesteps - card_pass_tune_interval * n_card_pass_tunes
