@@ -13,7 +13,7 @@ for i in range(10):
         log_path='output/logs/ppo_passing_compare_stages_setups/every_512x5',
         eval_freq_episodes=2000,
         n_eval_episodes=500,
-        stages_lengths_episodes=[512 * 5] * 8,
+        stages_lengths_episodes=[512 * 5] * 12,
         progress_bar=True,
         random_state=i,
     )
@@ -24,7 +24,7 @@ for i in range(10):
         log_path='output/logs/ppo_passing_compare_stages_setups/every_512x20',
         eval_freq_episodes=2000,
         n_eval_episodes=500,
-        stages_lengths_episodes=[512 * 20] * 2,
+        stages_lengths_episodes=[512 * 20] * 3,
         progress_bar=True,
         random_state=i,
     )
