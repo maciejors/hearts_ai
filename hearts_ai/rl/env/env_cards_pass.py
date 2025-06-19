@@ -265,7 +265,7 @@ class HeartsCardsPassEnvironment(gym.Env):
         if not self.suppress_deterministic_eval_warn:
             self.__handle_deterministic_eval_check(pts_with_passing, pts_no_passing)
 
-        reward = pts_with_passing.mean() - pts_no_passing.mean()
+        reward = pts_no_passing.mean() - pts_with_passing.mean()
         return self._get_obs(), reward, True, False, {'is_success': reward > 0}
 
     def action_masks(self) -> np.ndarray:
