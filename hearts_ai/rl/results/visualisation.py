@@ -353,7 +353,7 @@ class PlotMakerCardPassing(PlotMaker):
         fig_title='Rounds where passing cards reduced points scored',
         xlabel='Training timestep',
         ylabel='Success rate (%)',
-        baseline_y=25,
+        baseline_y=50,
     )
     def _plot_eval_success_rate_mean(self, ax: plt.Axes, *, eval_id: str):
         mean_eval_df = self._combined_eval_results[eval_id] \

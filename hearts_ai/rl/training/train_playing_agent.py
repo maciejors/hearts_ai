@@ -19,7 +19,7 @@ from .common import (
 from .opponents.callbacks import (
     get_callback_from_agent,
     get_random_action_taking_callback,
-    rule_based_play_callback,
+    rule_based_play_callback, rule_based_card_pass_callback,
 )
 
 
@@ -50,7 +50,7 @@ def train_playing_agent(
             training will proceed for another ``k2`` episodes before terminating.
             If this is a one-element list, the opponents will not be updated
             at all during training.
-        eval_passing_agent: the trained card passing agent used for evaluations.
+        eval_card_passing_agent: the trained card passing agent used for evaluations.
         eval_freq_episodes: how often to evaluate the agent (in episodes).
         n_eval_episodes: how many episodes to run in a single evaluation.
         progress_bar:
@@ -88,9 +88,21 @@ def train_playing_agent(
     agent = create_agent(agent_cls, env, seed=get_seed())
 
     if eval_card_passing_agent is not None:
-        card_passing_callback = get_callback_from_agent(eval_card_passing_agent)
+        card_passing_callbacks = {
+            'random': [
+                get_callback_from_agent(eval_card_passing_agent),
+                *[get_random_action_taking_callback(random_state=get_seed()) for _ in range(3)],
+            ],
+            'rule_based': [
+                get_callback_from_agent(eval_card_passing_agent),
+                *[rule_based_card_pass_callback for _ in range(3)],
+            ],
+        }
     else:
-        card_passing_callback = None
+        card_passing_callbacks = {
+            'random': None,
+            'rule_based': None,
+        }
 
     # sparse setting, because we only care about the end-of-round score
     eval_random_callback = create_eval_callback(
@@ -99,7 +111,7 @@ def train_playing_agent(
                 get_random_action_taking_callback(random_state=get_seed())
                 for _ in range(3)
             ],
-            card_passing_callbacks=card_passing_callback,
+            card_passing_callbacks=card_passing_callbacks['random'],
             reward_setting='sparse',
         ),
         eval_log_path=os.path.join(log_path, 'eval_random'),
@@ -110,7 +122,7 @@ def train_playing_agent(
     eval_rule_based_callback = create_eval_callback(
         HeartsPlayEnvironment(
             opponents_callbacks=[rule_based_play_callback] * 3,
-            card_passing_callbacks=card_passing_callback,
+            card_passing_callbacks=card_passing_callbacks['rule_based'],
             reward_setting='sparse',
         ),
         eval_log_path=os.path.join(log_path, 'eval_rule_based'),
