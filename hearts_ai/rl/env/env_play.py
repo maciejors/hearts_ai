@@ -1,5 +1,5 @@
 import warnings
-from typing import Literal, Any, SupportsFloat, TypeAlias
+from typing import Literal, Any, SupportsFloat, TypeAlias, Callable
 
 import gymnasium as gym
 import numpy as np
@@ -21,6 +21,54 @@ from .utils import (
 
 CardPassEnvObsType: TypeAlias = ObsType
 CardPassEnvActType: TypeAlias = ActType
+
+
+def _calculate_reward_dense(
+        *,
+        is_round_finished: bool,
+        current_round_points_collected: list[int],
+        trick_points: int,
+        is_trick_taken: bool,
+        **kwargs,
+) -> int:
+    # the agent has shot the moon
+    if is_round_finished and current_round_points_collected[0] == 26:
+        return 26
+    # someone else has shot the moon
+    if is_round_finished and 26 in current_round_points_collected:
+        return -26
+
+    sign = -2 * is_trick_taken + 1
+    reward = sign * trick_points
+    return reward
+
+
+def _calculate_reward_sparse(
+        *,
+        is_round_finished: bool,
+        current_round_points_collected: list[int],
+        **kwargs,
+) -> int:
+    if not is_round_finished:
+        return 0
+    if current_round_points_collected[0] == 26:
+        return 26
+    if 26 in current_round_points_collected:
+        return -26
+    return -current_round_points_collected[0]
+
+
+def _calculate_reward_binary(
+        *,
+        is_round_finished: bool,
+        current_round_scores: list[int],
+        **kwargs,
+) -> int:
+    if not is_round_finished:
+        return 0
+    if min(current_round_scores) == current_round_scores[0]:
+        return 1
+    return 0
 
 
 class HeartsPlayEnvironment(gym.Env):
@@ -89,6 +137,12 @@ class HeartsPlayEnvironment(gym.Env):
         'round',
     ]
 
+    reward_systems = {
+        'dense': _calculate_reward_dense,
+        'sparse': _calculate_reward_sparse,
+        'binary': _calculate_reward_binary,
+    }
+
     def __init__(
             self,
             opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
@@ -100,10 +154,9 @@ class HeartsPlayEnvironment(gym.Env):
 
         self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
 
-        allowed_reward_settings = ['dense', 'sparse', 'binary']
-        if reward_setting not in allowed_reward_settings:
+        if reward_setting not in HeartsPlayEnvironment.reward_systems:
             raise ValueError(f'Invalid `reward_setting`: "{reward_setting}". '
-                             f'Accepted values: {allowed_reward_settings}.')
+                             f'Accepted values: {HeartsPlayEnvironment.reward_systems.keys()}.')
         self.reward_setting = reward_setting
 
         if card_passing_callbacks is not None:
@@ -170,47 +223,9 @@ class HeartsPlayEnvironment(gym.Env):
 
         return self._get_obs(), {}
 
-    @staticmethod
-    def _calculate_reward_dense(
-            is_round_finished: bool,
-            current_round_points_collected: list[int],
-            trick_points: int,
-            is_trick_taken: bool,
-    ) -> int:
-        # the agent has shot the moon
-        if is_round_finished and current_round_points_collected[0] == 26:
-            return 26
-        # someone else has shot the moon
-        if is_round_finished and 26 in current_round_points_collected:
-            return -26
-
-        sign = -2 * is_trick_taken + 1
-        reward = sign * trick_points
-        return reward
-
-    @staticmethod
-    def _calculate_reward_sparse(
-            is_round_finished: bool,
-            current_round_points_collected: list[int]
-    ) -> int:
-        if not is_round_finished:
-            return 0
-        if current_round_points_collected[0] == 26:
-            return 26
-        if 26 in current_round_points_collected:
-            return -26
-        return -current_round_points_collected[0]
-
-    @staticmethod
-    def _calculate_reward_binary(
-            is_round_finished: bool,
-            current_round_scores: list[int]
-    ) -> int:
-        if not is_round_finished:
-            return 0
-        if min(current_round_scores) == current_round_scores[0]:
-            return 1
-        return 0
+    @property
+    def _calculate_reward(self) -> Callable:
+        return HeartsPlayEnvironment.reward_systems[self.reward_setting]
 
     def step(
             self, action: ActType
@@ -227,30 +242,17 @@ class HeartsPlayEnvironment(gym.Env):
             self.__simulate_next_opponent()
 
         trick, trick_winner_idx = self.round.complete_trick()
+
         trick_points = sum(points_for_card(c) for c in trick)
-
-        # calculate the reward
-        if self.reward_setting == 'sparse':
-            reward = HeartsPlayEnvironment._calculate_reward_sparse(
-                self.round.is_finished,
-                self.round.points_collected
-            )
-        elif self.reward_setting == 'dense':
-            reward = HeartsPlayEnvironment._calculate_reward_dense(
-                self.round.is_finished,
-                self.round.points_collected,
-                trick_points,
-                trick_winner_idx == 0
-            )
-        else:  # binary
-            reward = HeartsPlayEnvironment._calculate_reward_binary(
-                self.round.is_finished,
-                self.round.scores,
-            )
-
         is_round_finished = self.round.is_finished
+        reward = self._calculate_reward(
+            is_round_finished=is_round_finished,
+            current_round_points_collected=self.round.points_collected,
+            current_round_scores=self.round.scores,
+            trick_points=trick_points,
+            is_trick_taken=trick_winner_idx == 0,
+        )
         info = {}
-
         if not is_round_finished:
             while self.round.current_player_idx != 0:
                 self.__simulate_next_opponent()
