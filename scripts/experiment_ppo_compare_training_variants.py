@@ -4,10 +4,10 @@ from hearts_ai.rl.training import train_both_agents, train_playing_agent
 
 reward_setting = 'dense'
 best_card_passing_agent = MaskablePPO.load(
-    'output/logs/ppo_passing_compare_stages_setups/every_512x20/run_8/eval_rule_based/best_model'
+    'output/logs/ppo_passing_compare_stages_setups/every_512x5/run_9/eval_rule_based/best_model'
 )
 
-for i in range(5):
+for i in range(10):
     train_both_agents(
         agent_cls_play=MaskablePPO,
         agent_cls_card_pass=MaskablePPO,
