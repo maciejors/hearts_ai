@@ -192,7 +192,6 @@ class MaskableMCTSRL(BaseAlgorithm):
         action, _ = self.mcts_rl_policy.predict(
             obs=observation,
             env_deepcopy=copy.deepcopy(self.env_single),
-            action_masks=action_masks,
             deterministic=deterministic,
         )
         return np.array([action]), None

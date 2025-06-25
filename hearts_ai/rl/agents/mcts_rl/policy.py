@@ -115,7 +115,6 @@ class MCTSRLPolicy:
             self,
             obs: ObsType,
             env_deepcopy: gym.Env,
-            action_masks: np.ndarray,
             deterministic: bool,
     ):
         """
