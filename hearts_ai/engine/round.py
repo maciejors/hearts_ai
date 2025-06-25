@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 from .constants import (
@@ -269,3 +271,15 @@ class HeartsRound:
             random_state=int(self._rng.integers(999999))
         )
         return next_round
+
+    def __deepcopy__(self, memo):
+        """
+        Note:
+            only things that need to be deep-copied for the environments are copied.
+        """
+        round_copy = copy.copy(self)
+        round_copy._hands = [card_list.copy() for card_list in self._hands]
+        round_copy._played_cards = [card_list.copy() for card_list in self._played_cards]
+        round_copy._taken_cards = [card_list.copy() for card_list in self._taken_cards]
+        round_copy._current_trick = self._current_trick.copy()
+        return round_copy

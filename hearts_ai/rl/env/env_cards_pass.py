@@ -1,3 +1,4 @@
+import copy
 import warnings
 from dataclasses import dataclass, field
 from typing import TypeAlias, Any, SupportsFloat
@@ -96,6 +97,12 @@ class HeartsCardsPassEnvironment(gym.Env):
         @property
         def picked_cards(self) -> list[Card]:
             return self._picked_cards
+
+        def __deepcopy__(self, memo):
+            state_copy = copy.copy(self)
+            state_copy._hands = [card_list.copy() for card_list in self._hands]
+            state_copy._picked_cards = self._picked_cards.copy()
+            return state_copy
 
     def __init__(
             self,
@@ -272,3 +279,9 @@ class HeartsCardsPassEnvironment(gym.Env):
         return create_cards_pass_env_action_masks(
             self.state.hands[0], self.state.picked_cards, self.state.pass_direction
         )
+
+    def __deepcopy__(self, memo):
+        env_copy = copy.copy(self)
+        env_copy.__times_consecutive_eval_identical = self.__times_consecutive_eval_identical.copy()
+        env_copy.state = copy.deepcopy(self.state)
+        return env_copy

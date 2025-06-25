@@ -1,3 +1,4 @@
+import copy
 import os
 import re
 import time
@@ -6,11 +7,15 @@ from datetime import datetime
 from typing import TypeVar, Callable, Type
 
 import numpy as np
+import torch
+from gymnasium.core import ObsType, ActType
 from sb3_contrib import MaskablePPO
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.monitor import Monitor
 
+from hearts_ai.rl.agents import MaskableMCTSRL
 from hearts_ai.rl.env import HeartsPlayEnvironment, HeartsCardsPassEnvironment
+from hearts_ai.rl.env.utils import ActionTakingCallback
 
 EPISODE_LENGTH_PLAY = 13
 EPISODE_LENGTH_CARD_PASS = 3
@@ -18,12 +23,15 @@ STATS_WINDOW_SIZE_PLAY = 2000
 STATS_WINDOW_SIZE_CARD_PASS = 1000
 PPO_N_STEPS_PLAY = 2496  # 3x multiple of 832 = 64 * 13 (batch_size * episode_length)
 PPO_N_STEPS_CARD_PASS = 1536  # 8x multiple of 192 = 64 * 3 (batch_size * episode_length)
-
+MCTS_RL_N_EPISODES_PLAY = 192  # 3x multiple of batch_size = 64
+MCTS_RL_N_EPISODES_CARD_PASS = 512  # 8x multiple of batch_size = 64
+MCTS_RL_BUFFER_SIZE_PLAY = 512  # between 2-3x updates
+MCTS_RL_BUFFER_SIZE_CARD_PASS = 1024  # 2x updates
 
 SupportedAlgorithm = TypeVar(
     'SupportedAlgorithm',
     MaskablePPO,
-    MaskablePPO,  # this is placeholder, and will be replaced with a new algorithm later
+    MaskableMCTSRL,
 )
 SupportedEnvironment = TypeVar(
     'SupportedEnvironment',
@@ -37,21 +45,38 @@ def print_start_training_info(steps_per_stage: np.ndarray):
     print(f'It will take {int(np.sum(steps_per_stage))} steps in total')
 
 
-def clone_agent(agent: SupportedAlgorithm) -> SupportedAlgorithm:
-    temp_filename = f'temp_{int(time.time() * 1000)}.zip'
-    agent.save(temp_filename)
-    agent_copy = agent.load(temp_filename)
-    os.remove(temp_filename)
-    return agent_copy
+def _get_clone_callback(agent: SupportedAlgorithm) -> ActionTakingCallback:
+    if isinstance(agent, MaskablePPO):
+        temp_filename = f'temp_{int(time.time() * 1000)}.zip'
+        agent.save(temp_filename)
+        agent_copy = agent.load(temp_filename, env=agent.env)
+        os.remove(temp_filename)
+        return lambda state, action_masks: agent_copy.predict(state, action_masks=action_masks)[0]
+
+    if isinstance(agent, MaskableMCTSRL):
+        # can't copy the whole MCTS mechanism, as that would lead to infinite loops
+        # therefore opponents only use the network
+        agent_network_copy = copy.deepcopy(agent.network).to(agent.device)
+
+        def callback(obs: ObsType, action_masks: np.ndarray) -> ActType:
+            obs_tensor = torch.tensor(obs, dtype=torch.float32) \
+                .unsqueeze(0) \
+                .to(agent.device)
+            with torch.no_grad():
+                policy_logits, _ = agent_network_copy(obs_tensor)
+
+            policy_logits_np = policy_logits.cpu().numpy()[0]
+            policy_logits_np[~action_masks] = -np.inf
+            action = np.argmax(policy_logits_np)
+            return action
+
+        return callback
+
+    raise TypeError('Unsupported agent type')
 
 
 def update_self_play_clones(env: SupportedEnvironment, agent: SupportedAlgorithm) -> None:
-    agent_copy = clone_agent(agent)
-    opponents_callbacks = [
-        lambda state, action_masks: agent_copy.predict(state, action_masks=action_masks)[0]
-        for _ in range(3)
-    ]
-    env.opponents_callbacks = opponents_callbacks
+    env.opponents_callbacks = [_get_clone_callback(agent) for _ in range(3)]
 
 
 def _get_next_run_dir(log_folder: str) -> str:
@@ -122,6 +147,31 @@ def _create_ppo_agent(
     raise TypeError(f'Unsupported environment: {type(env)}')
 
 
+def _create_mcts_rl_agent(
+        env: SupportedEnvironment,
+        seed: int,
+) -> MaskableMCTSRL:
+    if isinstance(env, HeartsPlayEnvironment):
+        print(f'MCTS-RL playing agent will update every {MCTS_RL_N_EPISODES_PLAY} episodes')
+        return MaskableMCTSRL(
+            env,
+            n_episodes=MCTS_RL_N_EPISODES_PLAY,
+            stats_window_size=STATS_WINDOW_SIZE_PLAY,
+            buffer_size=MCTS_RL_BUFFER_SIZE_PLAY,
+            seed=seed,
+        )
+    if isinstance(env, HeartsCardsPassEnvironment):
+        print(f'MCTS-RL card passing agent will update every {MCTS_RL_N_EPISODES_CARD_PASS} episodes')
+        return MaskableMCTSRL(
+            env,
+            n_episodes=MCTS_RL_N_EPISODES_CARD_PASS,
+            stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
+            buffer_size=MCTS_RL_BUFFER_SIZE_CARD_PASS,
+            seed=seed,
+        )
+    raise TypeError(f'Unsupported environment: {type(env)}')
+
+
 def create_agent(
         agent_cls: Type[SupportedAlgorithm],
         env: SupportedEnvironment,
@@ -129,7 +179,9 @@ def create_agent(
 ) -> SupportedAlgorithm:
     if agent_cls == MaskablePPO:
         return _create_ppo_agent(env, seed)
-    raise ValueError('Unsupported agent_cls value. Use MaskablePPO')
+    if agent_cls == MaskableMCTSRL:
+        return _create_mcts_rl_agent(env, seed)
+    raise ValueError('Unsupported agent_cls value. Use MaskablePPO or MaskableMCTSRL')
 
 
 def create_eval_callback(

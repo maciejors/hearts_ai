@@ -1,3 +1,4 @@
+import copy
 import warnings
 from typing import Literal, Any, SupportsFloat, TypeAlias, Callable
 
@@ -265,3 +266,12 @@ class HeartsPlayEnvironment(gym.Env):
 
     def action_masks(self) -> np.ndarray:
         return create_play_env_action_masks_from_hearts_round(self.round)
+
+    def __deepcopy__(self, memo):
+        """
+        Note:
+            only things that need to be deep-copied for the environments are copied.
+        """
+        env_copy = copy.copy(self)
+        env_copy.round = copy.deepcopy(self.round)
+        return env_copy
