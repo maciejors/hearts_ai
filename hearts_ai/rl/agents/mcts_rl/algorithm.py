@@ -107,7 +107,6 @@ class MaskableMCTSRL(BaseAlgorithm):
                 action, policy_target = self.mcts_rl_policy.predict(
                     obs=obs,
                     env_deepcopy=copy.deepcopy(self.env_single),
-                    action_masks=action_masks,
                     deterministic=False,
                 )
                 episode_obs_and_policies.append((obs, policy_target))
