@@ -43,6 +43,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             n_episodes: int = 192,
             buffer_size: int = 512,
             batch_size: int = 64,
+            max_tree_depth: int | None = None,
             learning_rate: float | Callable[[float], float] = 3e-4,
             seed: int | None = None,
             **kwargs,
@@ -56,14 +57,15 @@ class MaskableMCTSRL(BaseAlgorithm):
             policy=MCTSRLNetwork,  # type: ignore
             **kwargs,
         )
-        self._setup_model()
-
         self.n_episodes = n_episodes
         self.buffer_size = buffer_size
         self.buffer = []
         self.batch_size = batch_size
+        self.max_tree_depth = max_tree_depth
         self._np_random = np.random.default_rng(seed)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        self._setup_model()
 
     @property
     def env_single(self) -> gym.Env:
@@ -86,6 +88,7 @@ class MaskableMCTSRL(BaseAlgorithm):
         self.mcts_rl_policy = MCTSRLPolicy(
             network=self.network,
             n_actions=n_actions,
+            max_tree_depth=self.max_tree_depth,
             seed=self.seed,
             device=self.device,
         )
@@ -205,6 +208,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             'n_episodes': self.n_episodes,
             'buffer_size': self.buffer_size,
             'batch_size': self.batch_size,
+            'max_tree_depth': self.max_tree_depth,
             'learning_rate': self.learning_rate,
             'buffer': self.buffer,
             'network_state_dict': self.network.state_dict(),
@@ -229,6 +233,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             n_episodes=data['n_episodes'],
             buffer_size=data['buffer_size'],
             batch_size=data['batch_size'],
+            max_tree_depth=data['max_tree_depth'],
             learning_rate=data['learning_rate'],
             **kwargs,
         )

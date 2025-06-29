@@ -5,7 +5,7 @@ import torch.nn as nn
 class MCTSRLNetwork(nn.Module):
     def __init__(self, obs_size: int, n_actions: int):
         super(MCTSRLNetwork, self).__init__()
-        hidden_layer_size = 128
+        hidden_layer_size = 64
         self.shared = nn.Sequential(
             nn.Linear(obs_size, hidden_layer_size),
             nn.ReLU(),

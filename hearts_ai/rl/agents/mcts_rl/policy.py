@@ -86,6 +86,7 @@ class MCTSRLPolicy:
         network: A neural network architecture to use
         n_actions: Number of actions in the environment
         n_simulations: Number of simulations
+        max_tree_depth: maximum depth of MCTS tree
         c: A UCT parameter controlling the exploration-exploitation tradeoff
         device: for torch
     """
@@ -95,6 +96,7 @@ class MCTSRLPolicy:
             network: nn.Module,
             n_actions: int,
             n_simulations: int = 50,
+            max_tree_depth: int | None = None,
             c: float = 1,
             device: str = 'cpu',
             seed: int | None = None
@@ -102,6 +104,7 @@ class MCTSRLPolicy:
         self.network = network
         self.n_actions = n_actions
         self.n_simulations = n_simulations
+        self.max_tree_depth = max_tree_depth
         self.c = c
         self.device = device
         self._np_random = np.random.default_rng(seed)
@@ -110,6 +113,11 @@ class MCTSRLPolicy:
         return torch.tensor(obs, dtype=torch.float32) \
             .unsqueeze(0) \
             .to(self.device)
+
+    def is_max_depth_reached(self, path: list[MCTSNode]) -> bool:
+        if self.max_tree_depth is None:
+            return False
+        return len(path) >= self.max_tree_depth
 
     def predict(
             self,
@@ -132,7 +140,7 @@ class MCTSRLPolicy:
                 path.append(node)
 
             # 2. expansion
-            if not node.is_terminal:
+            if not node.is_terminal and not self.is_max_depth_reached(path):
                 self._expansion(node)
 
             # 3. simulation - in AlphaGo Zero this is replaced by a neural network
