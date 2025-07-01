@@ -1,8 +1,8 @@
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-from hearts_ai.engine import PassDirection, Suit
-from hearts_ai.rl.env.utils import ActionTakingCallback, action_to_card, card_to_idx
+from hearts_ai.engine import PassDirection, Suit, Card
+from hearts_ai.rl.env.utils import ActionTakingCallback
 from .rule_based import play_card_rule_based, select_cards_to_pass_rule_based
 from ..common import SupportedAlgorithm
 
@@ -29,7 +29,7 @@ def rule_based_play_callback(obs: ObsType, _: np.ndarray) -> ActType:
     is_first_trick = trick_number == 0
 
     # agent's hand
-    hand = [action_to_card(i) for i in range(52) if obs[1 + i] == 1]
+    hand = [Card(i) for i in range(52) if obs[1 + i] == 1]
 
     # current trick & remaining cards in play
     current_trick = []
@@ -37,14 +37,14 @@ def rule_based_play_callback(obs: ObsType, _: np.ndarray) -> ActType:
     for offset in [53, 105, 157]:
         for i in range(52):
             if obs[offset + i] == 2:
-                current_trick.append(action_to_card(i))
+                current_trick.append(Card(i))
             if obs[offset + i] == 1:
-                remaining_cards_opponents.append(action_to_card(i))
+                remaining_cards_opponents.append(Card(i))
 
     # if a heart was played means the hearts are broken
     are_hearts_broken = False
     for card_idx in range(52):
-        card = action_to_card(card_idx)
+        card = Card(card_idx)
         if card.suit == Suit.HEART:
             for player_offset in [1, 53, 105, 157]:
                 if obs[player_offset + card_idx] == -1:
@@ -60,7 +60,7 @@ def rule_based_play_callback(obs: ObsType, _: np.ndarray) -> ActType:
     for opponent_idx, offset in enumerate([53, 105, 157]):
         for suit in Suit:
             has_suit = any(
-                obs[offset + i] in {1, 2} and action_to_card(i).suit == suit
+                obs[offset + i] in {1, 2} and Card(i).suit == suit
                 for i in range(52)
             )
             if not has_suit:
@@ -74,13 +74,13 @@ def rule_based_play_callback(obs: ObsType, _: np.ndarray) -> ActType:
         opponents_voids=opponents_voids,
         remaining_cards_opponents=remaining_cards_opponents,
     )
-    return card_to_idx(card_to_play)
+    return card_to_play.idx
 
 
 def rule_based_card_pass_callback(obs: ObsType, _: np.ndarray) -> ActType:
     already_picked_count = np.sum(obs[:52] == -1)
     hand = [
-        action_to_card(i) for i in range(52)
+        Card(i) for i in range(52)
         if obs[i] == 1 or obs[i] == -1
     ]
 
@@ -96,4 +96,4 @@ def rule_based_card_pass_callback(obs: ObsType, _: np.ndarray) -> ActType:
     # it is not the most optimal but is clearer and easier to implement
     selected_cards = select_cards_to_pass_rule_based(hand, direction)
     card_to_pass = selected_cards[already_picked_count]
-    return card_to_idx(card_to_pass)
+    return card_to_pass.idx

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
+from hearts_ai.engine.card import Card
 from hearts_ai.engine.constants import PassDirection
-from hearts_ai.engine.deck import Card
 
 
 class BasePlayer(ABC):

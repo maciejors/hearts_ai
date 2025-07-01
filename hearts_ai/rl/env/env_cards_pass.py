@@ -7,7 +7,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium.core import ObsType, ActType
 
-from hearts_ai.engine import Card, HeartsRound, HeartsRules, PassDirection
+from hearts_ai.engine import HeartsRound, HeartsRules, PassDirection
+from hearts_ai.engine.constants import PLAYER_COUNT
 from .obs import (
     create_cards_pass_env_obs,
     create_cards_pass_env_action_masks,
@@ -15,7 +16,6 @@ from .obs import (
     create_play_env_action_masks_from_hearts_round,
 )
 from .utils import (
-    action_to_card,
     ActionTakingCallbackParam,
     handle_action_taking_callback_param,
 )
@@ -83,24 +83,24 @@ class HeartsCardsPassEnvironment(gym.Env):
     @dataclass(slots=True)
     class State:
         _pass_direction: PassDirection
-        _hands: list[list[Card]]
-        _picked_cards: list[Card] = field(default_factory=list)
+        _hands: list[np.ndarray]
+        _picked_cards: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int8))
 
         @property
         def pass_direction(self) -> PassDirection:
             return self._pass_direction
 
         @property
-        def hands(self) -> list[list[Card]]:
+        def hands(self) -> list[np.ndarray]:
             return self._hands
 
         @property
-        def picked_cards(self) -> list[Card]:
+        def picked_cards(self) -> np.ndarray:
             return self._picked_cards
 
         def __deepcopy__(self, memo):
             state_copy = copy.copy(self)
-            state_copy._hands = [card_list.copy() for card_list in self._hands]
+            state_copy._hands = [card_arr.copy() for card_arr in self._hands]
             state_copy._picked_cards = self._picked_cards.copy()
             return state_copy
 
@@ -161,7 +161,7 @@ class HeartsCardsPassEnvironment(gym.Env):
 
         self.state = HeartsCardsPassEnvironment.State(
             _pass_direction=next_pass_direction,
-            _hands=hearts_round.hands,
+            _hands=[hearts_round.get_hand(i) for i in range(PLAYER_COUNT)],
         )
         return self._get_obs(), {}
 
@@ -176,28 +176,27 @@ class HeartsCardsPassEnvironment(gym.Env):
             random_state=int(self.np_random.integers(999999)),
             pass_direction=self.state.pass_direction
         )
-        hearts_round.hands = [h.copy() for h in self.state.hands]
+        hearts_round.override_hand = [h.copy() for h in self.state.hands]
 
         if include_card_passing:
             hearts_round.pick_cards_to_pass(0, self.state.picked_cards)
 
             for opponent_player_idx, opponent_callback in enumerate(self.opponents_callbacks, 1):
                 opponent_hand = self.state.hands[opponent_player_idx]
-                opponent_picked_cards = []
+                opponent_picked_cards = np.array([])
                 for _ in range(3):
                     # opponents card pass
                     obs = create_cards_pass_env_obs(
                         opponent_hand, opponent_picked_cards, self.state.pass_direction
                     )
                     action_masks = create_cards_pass_env_action_masks(
-                        opponent_hand, opponent_picked_cards, self.state.pass_direction
+                        opponent_hand, opponent_picked_cards
                     )
                     action = opponent_callback(obs, action_masks)
-                    card_to_pass = action_to_card(action)
-                    opponent_picked_cards.append(card_to_pass)
+                    opponent_picked_cards = np.append(opponent_picked_cards, action)
 
                 hearts_round.pick_cards_to_pass(opponent_player_idx, opponent_picked_cards)
-            hearts_round.complete_pass_cards()
+            hearts_round.perform_cards_passing()
 
         while not hearts_round.is_finished:
             # simulate gameplay
@@ -205,8 +204,7 @@ class HeartsCardsPassEnvironment(gym.Env):
             action_masks = create_play_env_action_masks_from_hearts_round(hearts_round)
             playing_callback = self.playing_callbacks[hearts_round.current_player_idx]
             action = playing_callback(obs, action_masks)
-            card_to_play = action_to_card(action)
-            hearts_round.play_card(card_to_play)
+            hearts_round.play_card(action)
 
             if hearts_round.is_current_trick_full:
                 hearts_round.complete_trick()
@@ -245,18 +243,17 @@ class HeartsCardsPassEnvironment(gym.Env):
     def step(
             self, action: ActType
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-        card_to_pass = action_to_card(action)
-        if card_to_pass not in self.state.hands[0]:
+        if action not in self.state.hands[0]:
             warnings.warn('Illegal action - the selected card is not on hand.'
                           'Environment state will not change')
             return self._get_obs(), 0, False, False, {}
 
-        if card_to_pass in self.state.picked_cards:
+        if action in self.state.picked_cards:
             warnings.warn('Illegal action - the selected card is already picked.'
                           'Environment state will not change')
             return self._get_obs(), 0, False, False, {}
 
-        self.state.picked_cards.append(card_to_pass)
+        self.state._picked_cards = np.append(self.state.picked_cards, action)
         if len(self.state.picked_cards) < 3:
             return self._get_obs(), 0, False, False, {}
 
@@ -277,7 +274,7 @@ class HeartsCardsPassEnvironment(gym.Env):
 
     def action_masks(self) -> np.ndarray:
         return create_cards_pass_env_action_masks(
-            self.state.hands[0], self.state.picked_cards, self.state.pass_direction
+            self.state.hands[0], self.state.picked_cards
         )
 
     def __deepcopy__(self, memo):

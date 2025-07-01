@@ -2,10 +2,11 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from hearts_ai.engine import Card, PassDirection, Suit, Deck
+from hearts_ai.engine import Card, PassDirection, Suit
 from hearts_ai.engine.constants import PLAYER_COUNT
 from hearts_ai.rl.training.opponents.rule_based import play_card_rule_based, select_cards_to_pass_rule_based
 from .base import BasePlayer
+from ..deck import Deck
 
 
 def _opponents_voids_default_factory() -> dict[Suit, list[bool]]:
@@ -26,13 +27,13 @@ class RuleBasedPlayer(BasePlayer):
     def __init__(self):
         self.memory = RuleBasedPlayer.Memory()
 
-    def _get_indexes_of_players_in_trick(self) -> list[int]:
+    def _get_indexes_of_players_in_trick(self) -> np.ndarray:
         """
         Returns:
             indexes of players in the list trick, relative to us
             (0 - us, 1 - left, 2 - across, 3 - right)
         """
-        return list(np.array(range(PLAYER_COUNT)) - self.memory.my_idx_in_curr_trick)
+        return (np.arange(PLAYER_COUNT) - self.memory.my_idx_in_curr_trick) % 4
 
     def play_card(
             self,

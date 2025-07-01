@@ -1,22 +1,42 @@
-import copy
-
 import numpy as np
 
 from .constants import (
     MAX_POINTS, PLAYER_COUNT, CARDS_PER_PLAYER_COUNT, PassDirection, CARDS_TO_PASS_COUNT,
 )
-from .deck import Deck, Card, Suit
 from .rules import HeartsRules
-from .utils import is_heart, points_for_card, is_starting_card, get_trick_winner_idx
+from .utils import is_heart, points_for_card, get_winning_card_argmax
 
-
-def _get_empty_cards_list_per_player() -> list[list[Card]]:
-    return [[] for _ in range(PLAYER_COUNT)]
+STATE_IDX_TRICK_NO = 0
+STATE_IDX_HANDS_INFO_START = [1, 53, 105, 157]
+STATE_IDX_LEAD_SUITS = [209, 210, 211, 212]
+STATE_IDX_POINTS_COLLECTED = [213, 214, 215, 216]
+STATE_IDX_ARE_HEARTS_BROKEN = 217
+STATE_IDX_TRICK_STARTING_PLAYER = 218
+STATE_IDX_TAKEN_CARDS = np.arange(219, 271)
 
 
 class HeartsRound:
     """
     Engine for the standard 4-player game of Hearts
+
+    The whole state of the game can be obtained through a method
+    ``get_numpy_state()`` which returns the state from the perspective of the
+    current player (i.e. the player that has to choose their card to play now).
+    This is ``None`` during card passing phase. Each state is a vector of
+    length 261, containing the following information (by indices):
+
+        0: Trick number
+        1-52: Player 0's relation to each card
+            (-1: played before, 0: not in hand, 1: in hand, 2: player in this trick)
+        53-104: Player 1's relation to each card
+        105-156: Player 2's relation to each card
+        157-208: Player 3's relation to each card
+        209-212: One-hot vector specifying the leading suit in this trick
+        213-216: Points collected so far in the game by each player
+        217: Are hearts broken? (0: no, 1: yes)
+        218: Index of a player starting this trick (or 4 if cards are not passed yet)
+        219-270: For each card, an index of a player who has taken it
+            (-1: not taken by anyone, 0-3: index of a player who has taken it)
 
     Args:
         rules: Toggleable rules of the engine. Set to ``None`` for default
@@ -29,27 +49,14 @@ class HeartsRound:
         random_state: Random seed for reproducibility
     """
 
-    __slots__ = [
-        '_rng',
-        'rules',
-        '_pass_direction',
-        '_hands',
-        '_taken_cards',
-        '_played_cards',
-        'trick_no',
-        'are_hearts_broken',
-        '_trick_starting_player_idx',
-        '_current_trick',
-        '__cards_to_pass',
-        'are_cards_passed',
-    ]
-
     def __init__(self,
                  rules: HeartsRules = HeartsRules(),
                  pass_direction: PassDirection | None = None,
-                 random_state: int | None = None):
+                 random_state: int | np.int_ | None = None):
 
-        self._rng = np.random.default_rng(random_state)
+        rng = np.random.default_rng(random_state)
+        self._next_seed = lambda: rng.integers(999999)
+
         self.rules = rules
 
         if not self.rules.passing_cards:
@@ -59,29 +66,25 @@ class HeartsRound:
         else:
             self._pass_direction = PassDirection.LEFT
 
-        deck = Deck(random_state=random_state)
-        deck.shuffle()
+        self._np_state = np.zeros(271, dtype=np.int8)
+        self._np_state[STATE_IDX_TRICK_NO] = 1
+        self._np_state[STATE_IDX_TAKEN_CARDS] = -1
 
-        self._hands = _get_empty_cards_list_per_player()
-        self._taken_cards = _get_empty_cards_list_per_player()
-        self._played_cards = _get_empty_cards_list_per_player()
-
+        deck = np.arange(52)
+        rng.shuffle(deck)
         for player_idx in range(PLAYER_COUNT):
-            self._hands[player_idx] = deck.deal(CARDS_PER_PLAYER_COUNT).tolist()
+            hand = deck[player_idx * 13:(player_idx + 1) * 13]
+            self._np_state[STATE_IDX_HANDS_INFO_START[player_idx] + hand] = 1
 
-        self.trick_no = 1
-        self.are_hearts_broken = False
-
-        self._trick_starting_player_idx: int | None = None
-        self._current_trick: list[Card] = []
-
-        self.__cards_to_pass = _get_empty_cards_list_per_player()
-
+        self.__cards_to_pass: list[np.ndarray] = [np.array([]) for _ in range(PLAYER_COUNT)]
         self.are_cards_passed = False
         if not self.__can_perform_card_passing():
             self.are_cards_passed = True
 
         self.set_starting_player()
+
+    def get_numpy_state(self) -> np.ndarray:
+        return self._np_state.copy()
 
     @property
     def pass_direction(self) -> PassDirection:
@@ -92,72 +95,86 @@ class HeartsRound:
         self._pass_direction = value
 
     @property
-    def hands(self) -> list[list[Card]]:
-        return [c.copy() for c in self._hands]
-
-    @hands.setter
-    def hands(self, value):
-        self._hands = value
-        # this is particularly useful for pass env
-        self.set_starting_player()
+    def trick_no(self) -> np.int_:
+        return self._np_state[STATE_IDX_TRICK_NO]  # type: ignore
 
     @property
-    def taken_cards(self) -> list[list[Card]]:
-        return [c.copy() for c in self._taken_cards]
+    def are_hearts_broken(self) -> bool:
+        return self._np_state[STATE_IDX_ARE_HEARTS_BROKEN] == 1
 
     @property
-    def played_cards(self) -> list[list[Card]]:
-        return [c.copy() for c in self._played_cards]
+    def trick_starting_player_idx(self) -> np.int_ | None:
+        if not self.are_cards_passed:
+            return None
+        return self._np_state[STATE_IDX_TRICK_STARTING_PLAYER]
 
     @property
-    def trick_starting_player_idx(self) -> int | None:
-        return self._trick_starting_player_idx
+    def current_trick_unordered(self) -> np.ndarray:
+        """
+        Returns:
+            List of card indexes in the current trick. The order of cards
+            is based on the order of players indexes. This is
+            computationally cheaper than ``current_trick_ordered``
+        """
+        return np.where(self._np_state[1:209] == 2)[0] % 52
 
     @property
-    def current_trick(self) -> list[Card]:
-        return self._current_trick.copy()
+    def current_trick_ordered(self) -> np.ndarray:
+        """
+        Returns:
+            List of card indexes in the current trick. The order of cards
+            is the order they were played (i.e. the first is the lead card)
+        """
+        players_order_in_trick = np.arange(
+            self.trick_starting_player_idx,
+            self.trick_starting_player_idx + PLAYER_COUNT
+        ) % PLAYER_COUNT
+
+        trick_ordered = []
+        for player_idx in players_order_in_trick:
+            base_idx = STATE_IDX_HANDS_INFO_START[player_idx]
+            player_hand = self._np_state[base_idx:base_idx + 52]
+            trick_raw_idx = np.where(player_hand == 2)[0]
+            if len(trick_raw_idx) > 0:
+                trick_ordered.append(trick_raw_idx[0])
+
+        return np.array(trick_ordered)
 
     @property
-    def points_collected(self) -> list[int]:
+    def points_collected(self) -> np.ndarray:
         """
         The number of points collected by each player in the round.
         Does not take the moon shot into account.
         """
-        return [sum(points_for_card(card) for card in self._taken_cards[i])
-                for i in range(PLAYER_COUNT)]
+        return self._np_state[STATE_IDX_POINTS_COLLECTED]
 
     @property
-    def scores(self) -> list[int]:
+    def scores(self) -> np.ndarray:
         """
         The score of each player in the round.
         Takes the moon shot into account.
         """
-        round_scores = self.points_collected.copy()
-
+        round_scores = self.points_collected
         if self.rules.moon_shot and self.is_moon_shot_triggered:
-            shooter_idx = round_scores.index(MAX_POINTS)
-            for player_idx in range(PLAYER_COUNT):
-                if player_idx != shooter_idx:
-                    round_scores[player_idx] += MAX_POINTS
-                else:
-                    round_scores[player_idx] -= MAX_POINTS
+            return MAX_POINTS - round_scores
         return round_scores
 
     @property
-    def current_player_idx(self) -> int:
+    def current_player_idx(self) -> np.int_:
         """ID of the player that is expected to throw the next card"""
-        return (self._trick_starting_player_idx + len(self._current_trick)) % PLAYER_COUNT
+        return (len(self.current_trick_unordered) + self.trick_starting_player_idx) % PLAYER_COUNT
 
     @property
-    def leading_suit(self) -> Suit | None:
+    def leading_suit(self) -> int | None:
         """Leading suit in the current trick, or None if the trick is empty"""
-        if len(self.current_trick) == 0:
+        if len(self.current_trick_unordered) == 0:
             return None
-        return self.current_trick[0].suit
+        lead_suit_idx = np.where(self._np_state[STATE_IDX_LEAD_SUITS] == 1)[0].item()
+        return lead_suit_idx
 
     @property
     def is_current_trick_full(self) -> bool:
-        return len(self._current_trick) == PLAYER_COUNT
+        return len(self.current_trick_unordered) == PLAYER_COUNT
 
     @property
     def is_moon_shot_triggered(self) -> bool:
@@ -173,9 +190,13 @@ class HeartsRound:
         Set the starting player to the player with 2 of clubs on hand
         """
         for player_idx in range(PLAYER_COUNT):
-            if any(is_starting_card(card) for card in self._hands[player_idx]):
-                self._trick_starting_player_idx = player_idx
-                return
+            if self._np_state[STATE_IDX_HANDS_INFO_START[player_idx]] == 1:
+                self._np_state[STATE_IDX_TRICK_STARTING_PLAYER] = player_idx
+
+    def get_hand(self, player_idx: int | np.int_) -> np.ndarray:
+        base_idx = STATE_IDX_HANDS_INFO_START[player_idx]
+        hand_mask = self._np_state[base_idx:(base_idx + 52)]
+        return np.where(hand_mask == 1)[0]
 
     def __can_perform_card_passing(self) -> bool:
         """
@@ -187,14 +208,13 @@ class HeartsRound:
             return False
         return not self.are_cards_passed
 
-    def pick_cards_to_pass(self, player_idx: int, cards: list[Card]):
+    def pick_cards_to_pass(self, player_idx: int | np.int_, cards_idx: np.ndarray):
         if not self.__can_perform_card_passing():
             return
-        self.__cards_to_pass[player_idx] = cards
-        for card in cards:
-            self._hands[player_idx].remove(card)
+        assert np.all(self._np_state[STATE_IDX_HANDS_INFO_START[player_idx] + cards_idx] == 1)
+        self.__cards_to_pass[player_idx] = cards_idx
 
-    def complete_pass_cards(self):
+    def perform_cards_passing(self):
         if not self.__can_perform_card_passing():
             return
 
@@ -206,14 +226,15 @@ class HeartsRound:
 
         for player_idx in range(PLAYER_COUNT):
             target_idx = (player_idx + pass_offset) % PLAYER_COUNT
-            self._hands[target_idx].extend(self.__cards_to_pass[player_idx])
-            self.__cards_to_pass[player_idx] = []
+            cards_to_pass_idx = self.__cards_to_pass[player_idx]
+            self._np_state[STATE_IDX_HANDS_INFO_START[player_idx] + cards_to_pass_idx] = 0
+            self._np_state[STATE_IDX_HANDS_INFO_START[target_idx] + cards_to_pass_idx] = 1
 
         self.are_cards_passed = True
         # just in case 2 of clubs was passed
         self.set_starting_player()
 
-    def play_card(self, card: Card):
+    def play_card(self, card_idx: int | np.int_):
         """
         Play a card in the current trick
         """
@@ -225,14 +246,15 @@ class HeartsRound:
         if not self.are_cards_passed:
             raise RuntimeError('Cannot play any cards before cards are passed.')
 
-        self._hands[self.current_player_idx].remove(card)
-        self._played_cards[self.current_player_idx].append(card)
-        self._current_trick.append(card)
+        if self.leading_suit is None:
+            self._np_state[STATE_IDX_LEAD_SUITS[card_idx // 13]] = 1
 
-        if is_heart(card) and not self.are_hearts_broken:
-            self.are_hearts_broken = True
+        self._np_state[STATE_IDX_HANDS_INFO_START[self.current_player_idx] + card_idx] = 2
 
-    def complete_trick(self) -> tuple[list[Card], int]:
+        if is_heart(card_idx) and not self.are_hearts_broken:
+            self._np_state[STATE_IDX_ARE_HEARTS_BROKEN] = 1
+
+    def complete_trick(self, return_ordered=False) -> tuple[np.ndarray, np.int32]:
         """
         Complete the current trick and prepare for the next one
 
@@ -240,18 +262,30 @@ class HeartsRound:
             A tuple of two elements, the first one is the trick content, and
             the second is the index of a player who took the trick.
         """
-        current_trick = self.current_trick
-        winner_idx = get_trick_winner_idx(
-            current_trick,
-            trick_starting_player_idx=self.trick_starting_player_idx,
+        if not self.is_current_trick_full:
+            raise RuntimeError('The trick is not full and therefore cannot be completed')
+
+        if return_ordered:
+            trick_to_return = self.current_trick_ordered
+        else:
+            trick_to_return = self.current_trick_unordered
+
+        trick = self.current_trick_unordered
+        winner_idx = get_winning_card_argmax(
+            cards=trick,
+            leading_suit=self.leading_suit,
         )
+        pts = sum(points_for_card(c) for c in trick)
 
-        self._taken_cards[winner_idx].extend(current_trick)
-        self._trick_starting_player_idx = winner_idx
-        self._current_trick = []
-        self.trick_no += 1
+        self._np_state[STATE_IDX_TRICK_NO] += 1
+        hands = self._np_state[1:209]
+        hands[hands == 2] = -1
+        self._np_state[STATE_IDX_LEAD_SUITS] = 0
+        self._np_state[STATE_IDX_POINTS_COLLECTED[winner_idx]] += pts
+        self._np_state[STATE_IDX_TRICK_STARTING_PLAYER] = winner_idx
+        self._np_state[STATE_IDX_TAKEN_CARDS[trick]] = winner_idx
 
-        return current_trick, winner_idx
+        return trick_to_return, winner_idx
 
     def next(self) -> 'HeartsRound':
         """
@@ -268,7 +302,7 @@ class HeartsRound:
         next_round = HeartsRound(
             rules=self.rules,
             pass_direction=next_pass_direction,
-            random_state=int(self._rng.integers(999999))
+            random_state=self._next_seed(),
         )
         return next_round
 
@@ -277,9 +311,8 @@ class HeartsRound:
         Note:
             only things that need to be deep-copied for the environments are copied.
         """
-        round_copy = copy.copy(self)
-        round_copy._hands = [card_list.copy() for card_list in self._hands]
-        round_copy._played_cards = [card_list.copy() for card_list in self._played_cards]
-        round_copy._taken_cards = [card_list.copy() for card_list in self._taken_cards]
-        round_copy._current_trick = self._current_trick.copy()
-        return round_copy
+        result = HeartsRound.__new__(HeartsRound)
+        result._np_state = self._np_state.copy()
+        result.are_cards_passed = True
+        result.rules = self.rules
+        return result

@@ -1,10 +1,14 @@
+import numpy as np
+
 from hearts_ai.engine import Card, Suit, PassDirection
 from hearts_ai.engine.constants import CARDS_TO_PASS_COUNT
 from hearts_ai.engine.utils import get_valid_plays
 
-_Q_SPADE = Card(Suit.SPADE, 12)
-_K_SPADE = Card(Suit.SPADE, 13)
-_A_SPADE = Card(Suit.SPADE, 14)
+_Q_SPADE = Card.of('Q', Suit.SPADE)
+_K_SPADE = Card.of('K', Suit.SPADE)
+_A_SPADE = Card.of('A', Suit.SPADE)
+_2_CLUB = Card.of('2', Suit.CLUB)
+_A_CLUB = Card.of('A', Suit.CLUB)
 
 
 def _filter_to_suit(cards: list[Card], suit: Suit) -> list[Card]:
@@ -54,8 +58,14 @@ def play_card_rule_based(
     Returns:
         A card to play
     """
-    valid_plays_sorted_ranks = sorted(
-        get_valid_plays(hand, current_trick, are_hearts_broken, is_first_trick),
+    leading_suit = Suit.order(current_trick[0].suit) if len(current_trick) > 0 else None
+    valid_plays_sorted_ranks: list[Card] = sorted(
+        [Card(i) for i in get_valid_plays(
+            hand=np.array([c.idx for c in hand]),
+            leading_suit=leading_suit,
+            are_hearts_broken=are_hearts_broken,
+            is_first_trick=is_first_trick,
+        )],
         key=lambda c: c.rank_value,
     )
     if len(valid_plays_sorted_ranks) == 1:
@@ -84,7 +94,7 @@ def play_card_rule_based(
                 remaining_in_suit = _filter_to_suit(remaining_cards_opponents, suit)
                 lowest_in_hand_in_suit = _min_by_rank(cards_maybe_safe, filter_to_suit=suit)
                 # if the lowest in suit will take the trick anyway
-                if all(lowest_in_hand_in_suit.rank_value >= c.rank_value for c in remaining_in_suit):
+                if all(lowest_in_hand_in_suit.idx >= c.idx for c in remaining_in_suit):
                     cards_maybe_safe = _filter_out_suit(cards_maybe_safe, suit)
 
         # don't play spades if you have dangerous spades
@@ -122,8 +132,8 @@ def play_card_rule_based(
         return valid_plays_sorted_ranks[0]
 
     # case: we do not lead the trick
-    lead_suit = current_trick[0].suit
-    do_we_match_suit = any(c.suit == lead_suit for c in valid_plays_sorted_ranks)
+    leading_suit = current_trick[0].suit
+    do_we_match_suit = any(c.suit == leading_suit for c in valid_plays_sorted_ranks)
     if do_we_match_suit:
         # if it's the first trick, play the highest club
         our_highest = valid_plays_sorted_ranks[-1]
@@ -132,7 +142,7 @@ def play_card_rule_based(
 
         # if we have cards lower than the one currently winning the trick,
         # play the highest of them (unless its queen of spades)
-        current_winner = _max_by_rank(current_trick, filter_to_suit=lead_suit)
+        current_winner = _max_by_rank(current_trick, filter_to_suit=leading_suit)
         ours_lower_than_winner = [
             c for c in valid_plays_sorted_ranks
             if c.rank_value < current_winner.rank_value
@@ -141,7 +151,7 @@ def play_card_rule_based(
             return ours_lower_than_winner[-1]
 
         # if we are guaranteed to win the trick, play the highest card
-        remaining_in_suit = _filter_to_suit(remaining_cards_opponents, lead_suit)
+        remaining_in_suit = _filter_to_suit(remaining_cards_opponents, leading_suit)
         our_lowest = valid_plays_sorted_ranks[0]
         if all(our_lowest.rank_value > c.rank_value for c in remaining_in_suit):
             if our_highest != _Q_SPADE:
@@ -178,24 +188,22 @@ def select_cards_to_pass_rule_based(hand: list[Card], direction: PassDirection) 
     Implemented using guidelines from https://mark.random-article.com/hearts/hearts_tips.pdf
     """
     picked_to_pass: set[Card] = set()
-    banned_to_pass = {Card(Suit.HEART, 14)}
+    banned_to_pass = {Card.of('A', Suit.HEART)}
 
     # check for emergency situation - only spade is Q of spades
     spades_on_hand = _filter_to_suit(hand, Suit.SPADE)
     if len(spades_on_hand) == 1 and _Q_SPADE in spades_on_hand:
         picked_to_pass.add(_Q_SPADE)
 
-    two_of_clubs = Card(Suit.CLUB, 2)
     if direction == PassDirection.LEFT:
         banned_to_pass.update({
-            two_of_clubs, _Q_SPADE
+            _2_CLUB, _Q_SPADE
         })
-        ace_of_clubs = Card(Suit.CLUB, 14)
-        if ace_of_clubs in hand:
-            picked_to_pass.add(ace_of_clubs)
+        if _A_CLUB in hand:
+            picked_to_pass.add(_A_CLUB)
     else:
-        if two_of_clubs in hand:
-            picked_to_pass.add(two_of_clubs)
+        if _2_CLUB in hand:
+            picked_to_pass.add(_2_CLUB)
         if direction == PassDirection.RIGHT and _Q_SPADE in hand:
             picked_to_pass.add(_Q_SPADE)
 

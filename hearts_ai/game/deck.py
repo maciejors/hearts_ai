@@ -1,41 +1,8 @@
-from dataclasses import dataclass
 from typing import Self
 
 import numpy as np
 
-from .constants import Suit
-
-
-@dataclass(slots=True)
-class Card:
-    """
-    Args:
-        suit: Suit of the card
-        rank_value: Numerical representation of card's rank (2-14, where Ace=14)
-    """
-    suit: Suit
-    rank_value: int
-
-    rank_mapper = {
-        **{i: str(i) for i in range(2, 11)},
-        11: 'J',
-        12: 'Q',
-        13: 'K',
-        14: 'A',
-    }
-
-    @property
-    def rank(self) -> str:
-        return Card.rank_mapper[self.rank_value]
-
-    def __str__(self) -> str:
-        return f'{Card.rank_mapper[self.rank_value]}{self.suit.value}'
-
-    def __repr__(self) -> str:
-        return str(self)
-
-    def __hash__(self):
-        return hash(str(self))
+from hearts_ai.engine import Card
 
 
 class Deck:
@@ -51,9 +18,7 @@ class Deck:
 
         # standard deck of 52 cards
         self._cards = np.array([
-            Card(suit, rank)
-            for suit in Suit
-            for rank in Card.rank_mapper.keys()
+            Card(i) for i in range(52)
         ])
         self._cards_left = 0
         self.shuffle()

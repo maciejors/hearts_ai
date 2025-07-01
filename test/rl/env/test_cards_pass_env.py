@@ -6,8 +6,7 @@ from gymnasium.core import ObsType
 
 from hearts_ai.engine import HeartsRound
 from hearts_ai.rl.env import HeartsCardsPassEnvironment
-from hearts_ai.rl.env.utils import card_to_idx
-from test.utils import c, cl
+from test.utils import c, cla
 
 
 def get_sample_env() -> tuple[HeartsCardsPassEnvironment, ObsType]:
@@ -17,6 +16,10 @@ def get_sample_env() -> tuple[HeartsCardsPassEnvironment, ObsType]:
     )
     obs_reset, _ = env.reset(seed=28)
     return env, obs_reset
+
+
+def empty_hands_except_player(player_hand: list[str]) -> list[np.ndarray]:
+    return [cla(player_hand), np.array([]), np.array([]), np.array([])]
 
 
 def get_mock_params_for_hearts_round() -> dict:
@@ -34,9 +37,9 @@ def get_mock_params_for_hearts_round() -> dict:
 
     return {
         'pick_cards_to_pass': MagicMock(),
-        'complete_pass_cards': MagicMock(),
+        'perform_cards_passing': MagicMock(),
         'is_finished': True,
-        'scores': PropertyMock(side_effect=lambda: [next_val(), 0, 0, 0]),
+        'scores': PropertyMock(side_effect=lambda: np.array([next_val(), 0, 0, 0])),
     }
 
 
@@ -48,12 +51,12 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
-        hands=[cl(['2♣', '3♦']), [], [], []],
+        hands=empty_hands_except_player(['2♣', '3♦']),
     )
     def test_reset_state(self):
-        env, obs_reset = get_sample_env()
-        card1_idx = card_to_idx(c('2♣'))
-        card2_idx = card_to_idx(c('3♦'))
+        _, obs_reset = get_sample_env()
+        card1_idx = c('2♣').idx
+        card2_idx = c('3♦').idx
         self.assertEqual(1, obs_reset[card1_idx], 'Agent should have 2♣ in its hand')
         self.assertEqual(1, obs_reset[card2_idx], 'Agent should have 3♦ in its hand')
         self.assertEqual(2, np.sum(obs_reset[:52]), 'Agent should only have 2 cards in its hand')
@@ -63,11 +66,11 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
         **get_mock_params_for_hearts_round(),
     )
     def test_step_state(self):
-        with patch.object(HeartsCardsPassEnvironment.State, 'hands', [cl(['2♣', '3♦', '4♦']), [], [], []]):
+        with patch.object(HeartsCardsPassEnvironment.State, 'hands', empty_hands_except_player(['2♣', '3♦', '4♦'])):
             env, _ = get_sample_env()
-            card1_idx = card_to_idx(c('2♣'))
-            card2_idx = card_to_idx(c('3♦'))
-            card3_idx = card_to_idx(c('4♦'))
+            card1_idx = c('2♣').idx
+            card2_idx = c('3♦').idx
+            card3_idx = c('4♦').idx
 
             obs = env.step(card3_idx)[0]
 
@@ -96,7 +99,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
                          'Pass direction should be across after the third reset')
         self.assertEqual(1, obs_reset_all[3][52],
                          'Pass direction should be left after the fourth reset')
-        for i, obs_reset in enumerate(obs_reset_all):
+        for obs_reset in obs_reset_all:
             self.assertEqual(1, np.sum(obs_reset[52:55]), 'Pass direction should be one-hot encoded')
 
     @patch.multiple(
@@ -105,12 +108,12 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
-        hands=[cl(['2♣', '3♦']), [], [], []],
+        hands=empty_hands_except_player(['2♣', '3♦']),
     )
     def test_action_mask_hand(self):
         env, _ = get_sample_env()
-        card1_idx = card_to_idx(c('2♣'))
-        card2_idx = card_to_idx(c('3♦'))
+        card1_idx = c('2♣').idx
+        card2_idx = c('3♦').idx
         action_mask_reset = env.action_masks()
         self.assertTrue(action_mask_reset[card1_idx])
         self.assertTrue(action_mask_reset[card2_idx])
@@ -122,11 +125,11 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
-        hands=[cl(['2♣', '3♦']), [], [], []],
+        hands=empty_hands_except_player(['2♣', '3♦']),
     )
     def test_action_mask_picked(self):
         env, _ = get_sample_env()
-        card1_idx = card_to_idx(c('2♣'))
+        card1_idx = c('2♣').idx
         env.step(card1_idx)
         action_mask = env.action_masks()
 
@@ -139,11 +142,11 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
-        hands=[cl(['2♣']), [], [], []],
+        hands=empty_hands_except_player(['2♣']),
     )
     def test_invalid_action_no_change(self):
         env, obs_reset = get_sample_env()
-        invalid_action = card_to_idx(c('3♦'))
+        invalid_action = c('3♦').idx
 
         with patch('warnings.warn'):
             obs_invalid_action, reward, _, _, _ = env.step(invalid_action)
@@ -160,7 +163,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
-        hands=[cl(['2♣', '3♣', '4♣']), [], [], []],
+        hands=empty_hands_except_player(['2♣', '3♣', '4♣']),
     )
     def test_terminated_after_cards_passed(self):
         env, _ = get_sample_env()
@@ -177,7 +180,7 @@ class TestHeartsPlayEnvironment(unittest.TestCase):
     )
     @patch.multiple(
         HeartsCardsPassEnvironment.State,
-        hands=[cl(['2♣', '3♣', '4♣']), [], [], []],
+        hands=empty_hands_except_player(['2♣', '3♣', '4♣']),
     )
     def test_rewards(self):
         env, _ = get_sample_env()
