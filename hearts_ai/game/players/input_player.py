@@ -1,9 +1,10 @@
 import numpy as np
 
+from hearts_ai.engine.card import Card
 from hearts_ai.engine.constants import Suit, PassDirection
-from hearts_ai.engine.deck import Card
-from hearts_ai.engine.utils import points_for_card, get_valid_plays
+from hearts_ai.engine.utils import points_for_card
 from .base.base_player import BasePlayer
+from ..utils import get_valid_plays_objs
 
 
 class InputPlayer(BasePlayer):
@@ -44,7 +45,8 @@ class InputPlayer(BasePlayer):
 
         print('Your hand:')
         hand = self._sorted_hand(hand)
-        valid_cards = get_valid_plays(hand, trick, are_hearts_broken, is_first_trick)
+        leading_suit = trick[0].suit if len(trick) > 0 else None
+        valid_cards = get_valid_plays_objs(hand, leading_suit, are_hearts_broken, is_first_trick)
         valid_cards_idx = [hand.index(card) for card in valid_cards]
         self.pretty_print_hand(hand, valid_cards_idx)
 
@@ -90,9 +92,11 @@ class InputPlayer(BasePlayer):
             except IndexError:
                 print('Choice(s) out of bounds. Please try again.')
 
+        return []  # this will probably never be returned
+
     def post_trick_callback(self, trick: list[Card], is_trick_taken: bool) -> None:
         print(f'Trick outcome: {', '.join([str(card) for card in trick])} '
-              f'({sum([points_for_card(c) for c in trick])} pts)')
+              f'({sum([points_for_card(c.idx) for c in trick])} pts)')
         if is_trick_taken:
             print('You take this trick.')
         input('Press [Enter] to proceed ')

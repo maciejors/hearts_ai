@@ -1,70 +1,51 @@
-from .constants import Suit, HEART_POINTS, Q_SPADES_POINTS, PLAYER_COUNT
-from .deck import Card
+import numpy as np
+
+from .constants import HEART_POINTS, Q_SPADES_POINTS, HEARTS_SUIT_IDX, Q_SPADES_IDX
 
 
-def is_q_spades(card: Card) -> bool:
-    return card.suit == Suit.SPADE and card.rank == 'Q'
+def is_heart(card_idx: int | np.int_) -> bool:
+    return (card_idx // 13) == HEARTS_SUIT_IDX
 
 
-def is_heart(card: Card) -> bool:
-    return card.suit == Suit.HEART
-
-
-def is_starting_card(card: Card) -> bool:
-    return card.suit == Suit.CLUB and card.rank == '2'
-
-
-def points_for_card(card: Card) -> int:
-    if is_heart(card):
+def points_for_card(card_idx: int | np.int_) -> int:
+    if is_heart(card_idx):
         return HEART_POINTS
-    if is_q_spades(card):
+    if card_idx == Q_SPADES_IDX:
         return Q_SPADES_POINTS
     return 0
 
 
-def get_trick_winner_idx(trick: list[Card], trick_starting_player_idx: int = 0) -> int:
-    winning_card = trick[0]
-    winner_idx = trick_starting_player_idx
-
-    for i in range(1, PLAYER_COUNT):
-        player_idx = (trick_starting_player_idx + i) % PLAYER_COUNT
-        card = trick[i]
-
-        if card.suit == trick[0].suit and card.rank_value > winning_card.rank_value:
-            winning_card = card
-            winner_idx = player_idx
-
-    return winner_idx
+def get_winning_card_argmax(cards: np.ndarray, leading_suit: int) -> np.int32:
+    cards_matching_lead_suits = cards[cards // 13 == leading_suit]
+    return np.argmax(cards_matching_lead_suits)
 
 
-def get_valid_plays(hand: list[Card],
-                    trick: list[Card],
+def get_valid_plays(hand: np.ndarray,
+                    leading_suit: int | None,
                     are_hearts_broken: bool,
-                    is_first_trick: bool) -> list[Card]:
-    if len(trick) == 0 and is_first_trick:
-        # return a list with just the two of clubs
-        return [card for card in hand
-                if is_starting_card(card)]
+                    is_first_trick: bool) -> np.ndarray:
+    """
+    Returns:
+        An array of valid card idx
+    """
+    if leading_suit is None and is_first_trick:
+        # return a list with just the two of clubs = [0]
+        return np.zeros(1, dtype=np.int16)
 
-    if len(trick) == 0:
+    if leading_suit is None:
         if not are_hearts_broken:
-            non_hearts = [card for card in hand if not is_heart(card)]
+            non_hearts = hand[hand // 13 != HEARTS_SUIT_IDX]
             if len(non_hearts) > 0:
                 return non_hearts
-        return hand.copy()
+        return hand
 
-    lead_suit = trick[0].suit
-    matching_suit = [card for card in hand if card.suit == lead_suit]
-
+    matching_suit = hand[hand // 13 == leading_suit]
     if len(matching_suit) > 0:
         return matching_suit
 
     if is_first_trick:
-        non_points = [
-            card for card in hand
-            if not is_heart(card) and not is_q_spades(card)
-        ]
+        non_points = hand[(hand // 13 != HEARTS_SUIT_IDX) & (hand != Q_SPADES_IDX)]
         if len(non_points) > 0:
             return non_points
 
-    return hand.copy()
+    return hand

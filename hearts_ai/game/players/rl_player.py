@@ -5,17 +5,17 @@ import numpy as np
 
 from hearts_ai.engine import Card, PassDirection, Suit
 from hearts_ai.engine.constants import PLAYER_COUNT, CARDS_TO_PASS_COUNT
-from hearts_ai.engine.deck import Deck
-from hearts_ai.engine.utils import get_trick_winner_idx, points_for_card
+from hearts_ai.engine.utils import get_winning_card_argmax, points_for_card
 from hearts_ai.rl.env.obs import (
     create_play_env_obs,
     create_cards_pass_env_obs,
     create_play_env_action_masks,
     create_cards_pass_env_action_masks,
 )
-from hearts_ai.rl.env.utils import action_to_card
 from hearts_ai.rl.training.common import SupportedAlgorithm
 from .base import BasePlayer
+from ..deck import Deck
+from ..utils import card_list_to_array, array_to_card_list
 
 
 def _opponents_voids_default_factory() -> dict[Suit, list[bool]]:
@@ -67,6 +67,7 @@ class RLPlayer(BasePlayer):
     ) -> Card:
         self.memory.my_idx_in_curr_trick = len(trick)
         self.memory.curr_trick_no += 1
+        leading_suit = None
 
         if len(trick) > 0:
             leading_suit = trick[0].suit
@@ -74,34 +75,50 @@ class RLPlayer(BasePlayer):
                 if player_idx != 0 and card_played.suit != leading_suit:
                     self.memory.opponents_voids[leading_suit][player_idx - 1] = True
 
-        votes: list[Card] = []
+        votes = []
         for _ in range(self.simulation_count):
             obs = self._determinisation_state(hand, trick)
-            act_masks = create_play_env_action_masks(hand, trick, are_hearts_broken, is_first_trick)
+            act_masks = create_play_env_action_masks(
+                card_list_to_array(hand),
+                Suit.order(leading_suit),
+                are_hearts_broken,
+                is_first_trick,
+            )
             act = self.playing_agent.predict(obs, action_masks=act_masks)[0]
-            votes.append(action_to_card(act))
+            votes.append(act)
 
-        return Counter(votes).most_common(1)[0][0]
+        return Card(Counter(votes).most_common(1)[0][0])
 
     def select_cards_to_pass(self, hand: list[Card], direction: PassDirection) -> list[Card]:
         self.memory.pass_direction = direction
-        cards_to_pass = []
+        cards_to_pass = np.array([])
         for _ in range(CARDS_TO_PASS_COUNT):
-            obs = create_cards_pass_env_obs(hand, cards_to_pass)
-            act_masks = create_cards_pass_env_action_masks(hand, cards_to_pass)
+            obs = create_cards_pass_env_obs(
+                card_list_to_array(hand),
+                cards_to_pass,
+                direction,
+            )
+            act_masks = create_cards_pass_env_action_masks(
+                card_list_to_array(hand),
+                cards_to_pass,
+            )
             act = self.card_passing_agent.predict(obs, action_masks=act_masks)[0]
-            cards_to_pass.append(action_to_card(act))
+            cards_to_pass = np.append(cards_to_pass, act)
 
-        self.memory.passed_cards = cards_to_pass.copy()
-        return cards_to_pass
+        cards_to_pass_objs = array_to_card_list(cards_to_pass)
+        self.memory.passed_cards = cards_to_pass_objs.copy()
+        return cards_to_pass_objs
 
     def post_trick_callback(self, trick: list[Card], is_trick_taken: bool) -> None:
         indexes_of_players_in_trick = self._get_indexes_of_players_in_trick()
-        trick_winner_idx = get_trick_winner_idx(
-            trick, trick_starting_player_idx=indexes_of_players_in_trick[0]
+        winner_idx = get_winning_card_argmax(
+            card_list_to_array(trick),
+            Suit.order(trick[0].suit),
         )
-        pts_in_trick = sum(points_for_card(c) for c in trick)
-        self.memory.points[trick_winner_idx] = pts_in_trick
+        my_idx = indexes_of_players_in_trick[0]
+        winner_idx_relative_to_me = (winner_idx - my_idx) % 4
+        pts_in_trick = sum(points_for_card(c.idx) for c in trick)
+        self.memory.points[winner_idx_relative_to_me] = pts_in_trick
 
         leading_suit = trick[0].suit
         for player_idx, card_played in zip(indexes_of_players_in_trick, trick):
@@ -153,9 +170,9 @@ class RLPlayer(BasePlayer):
             trick_no=self.memory.curr_trick_no,
             player_idx=0,
             trick_starting_player_idx=self._get_indexes_of_players_in_trick()[0],
-            current_trick=trick,
-            hands=hands,
-            played_cards=self.memory.cards_played_by_each,
-            current_round_points_collected=self.memory.points,
+            current_trick_ordered=card_list_to_array(trick),
+            hands=[card_list_to_array(cl) for cl in hands],
+            played_cards=[card_list_to_array(cl) for cl in self.memory.cards_played_by_each],
+            current_round_points_collected=np.array(self.memory.points),
         )
         return obs
