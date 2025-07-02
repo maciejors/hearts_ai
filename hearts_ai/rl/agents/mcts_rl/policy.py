@@ -165,21 +165,25 @@ class MCTSRLPolicy:
 
         return action, policy_target
 
-    def _expansion(self, node: MCTSNode):
-        """
-        Performs the expansion step from MCTS.
-        """
-        obs_tensor = self.__obs_to_tensor(node.obs)
+    def get_network_policy(self, obs: ObsType, action_masks: np.ndarray) -> np.ndarray:
+        obs_tensor = self.__obs_to_tensor(obs)
         with torch.no_grad():
             policy_logits, _ = self.network(obs_tensor)
 
-        action_masks = get_action_masks(node.env)
         # probs for illegal actions should be 0
         action_masks_tensor = torch.tensor(action_masks, device=policy_logits.device) \
             .unsqueeze(0)
         policy_logits[~action_masks_tensor] = -np.inf
 
         policy_probs = torch.softmax(policy_logits, dim=-1).cpu().numpy()[0]
+        return policy_probs
+
+    def _expansion(self, node: MCTSNode):
+        """
+        Performs the expansion step from MCTS.
+        """
+        action_masks = get_action_masks(node.env)
+        policy_probs = self.get_network_policy(node.obs, action_masks)
 
         legal_actions = np.arange(self.n_actions)[action_masks]
         for action in legal_actions:

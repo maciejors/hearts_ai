@@ -190,12 +190,39 @@ class MaskableMCTSRL(BaseAlgorithm):
             episode_start: Optional[np.ndarray] = None,
             deterministic: bool = False,
             action_masks: Optional[np.ndarray] = None,
+            eval_mode: bool = True,
     ) -> tuple[np.ndarray, Optional[tuple[np.ndarray, ...]]]:
-        action, _ = self.mcts_rl_policy.predict(
-            obs=observation,
-            env_deepcopy=copy.deepcopy(self.env_single),
-            deterministic=deterministic,
-        )
+        """
+        Get the policy action from an observation.
+
+        Args:
+            observation: the input observation
+            state: unused parameter
+            episode_start: unused parameter
+            deterministic: Whether or not to return deterministic actions.
+            action_masks: Mask indicating allowed actions
+            eval_mode: If ``True``, only network prediction is used to decide
+                an action. If ``False``, standard MCTS+RL prediction will be
+                made. Default is ``True``, because in SB3 framework it is not
+                possible to perform simulations inside EvalCallbacks
+
+        Returns:
+            the model's action and the next hidden state
+            (the latter used in recurrent policies, here it is always None)
+        """
+        if eval_mode:
+            policy_probs = self.mcts_rl_policy.get_network_policy(observation, action_masks)
+            if deterministic:
+                action = np.argmax(policy_probs)
+            else:
+                n_actions = len(policy_probs)
+                action = self._np_random.choice(list(range(n_actions)), p=policy_probs)
+        else:
+            action, _ = self.mcts_rl_policy.predict(
+                obs=observation,
+                env_deepcopy=copy.deepcopy(self.env_single),
+                deterministic=deterministic,
+            )
         return np.array([action]), None
 
     def save(

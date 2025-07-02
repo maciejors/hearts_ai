@@ -158,7 +158,7 @@ def _create_mcts_rl_agent(
             n_episodes=MCTS_RL_N_EPISODES_PLAY,
             stats_window_size=STATS_WINDOW_SIZE_PLAY,
             buffer_size=MCTS_RL_BUFFER_SIZE_PLAY,
-            max_tree_depth=5,
+            max_tree_depth=None,
             seed=seed,
         )
     if isinstance(env, HeartsCardsPassEnvironment):
