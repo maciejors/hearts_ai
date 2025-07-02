@@ -76,7 +76,7 @@ class HeartsRound:
             hand = deck[player_idx * 13:(player_idx + 1) * 13]
             self._np_state[STATE_IDX_HANDS_INFO_START[player_idx] + hand] = 1
 
-        self.__cards_to_pass: list[np.ndarray] = [np.array([]) for _ in range(PLAYER_COUNT)]
+        self.__cards_to_pass: list[np.ndarray] = [np.array([], dtype=np.int8) for _ in range(PLAYER_COUNT)]
         self.are_cards_passed = False
         if not self.__can_perform_card_passing():
             self.are_cards_passed = True
