@@ -1,4 +1,5 @@
-import copy
+import sys
+import time
 import io
 import pathlib
 from typing import Union, Optional, Iterable, Any, Callable
@@ -8,13 +9,13 @@ import numpy as np
 import torch
 import torch as th
 import torch.optim as optim
-from sb3_contrib.common.maskable.utils import get_action_masks, is_masking_supported
+from sb3_contrib.common.maskable.utils import is_masking_supported
 from stable_baselines3.common.base_class import BaseAlgorithm, SelfBaseAlgorithm, BaseCallback
 from stable_baselines3.common.save_util import (
     load_from_zip_file, save_to_zip_file
 )
 from stable_baselines3.common.type_aliases import MaybeCallback, GymEnv
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.utils import safe_mean
 from torch.nn.functional import mse_loss, cross_entropy
 
 from .network import MCTSRLNetwork
@@ -57,6 +58,8 @@ class MaskableMCTSRL(BaseAlgorithm):
             policy=MCTSRLNetwork,  # type: ignore
             **kwargs,
         )
+        assert self.env.num_envs == 1, 'This algorithm does not support concurrent learning on multiple envs'
+
         self.n_episodes = n_episodes
         self.buffer_size = buffer_size
         self.buffer = []
@@ -67,21 +70,16 @@ class MaskableMCTSRL(BaseAlgorithm):
 
         self._setup_model()
 
-    @property
-    def env_single(self) -> gym.Env:
-        assert isinstance(self.env, DummyVecEnv)
-        return self.env.envs[0]
-
     def __to_tensor(self, iterable: Iterable) -> torch.Tensor:
         return torch.tensor(np.array(iterable), dtype=torch.float32).to(self.device)
 
     def _setup_model(self) -> None:
-        if not isinstance(self.env_single.action_space, gym.spaces.Discrete):
+        if not isinstance(self.env.action_space, gym.spaces.Discrete):
             raise ValueError('Only Discrete action space is supported')
 
-        n_actions = self.env_single.action_space.n
+        n_actions = self.env.action_space.n
         self.network = MCTSRLNetwork(  # type: ignore
-            obs_size=self.env_single.observation_space.shape[0],
+            obs_size=self.env.observation_space.shape[0],
             n_actions=n_actions,
         ).to(self.device)
         self.optimizer = optim.Adam(self.network.parameters(), lr=self.learning_rate)
@@ -93,6 +91,26 @@ class MaskableMCTSRL(BaseAlgorithm):
             device=self.device,
         )
 
+    def dump_logs(self) -> None:
+        """
+        Copied from:
+        https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/on_policy_algorithm.py
+        """
+        assert self.ep_info_buffer is not None
+        assert self.ep_success_buffer is not None
+
+        time_elapsed = max((time.time_ns() - self.start_time) / 1e9, sys.float_info.epsilon)
+        fps = int((self.num_timesteps - self._num_timesteps_at_start) / time_elapsed)
+        if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
+            self.logger.record("rollout/ep_rew_mean", safe_mean([ep_info["r"] for ep_info in self.ep_info_buffer]))
+            self.logger.record("rollout/ep_len_mean", safe_mean([ep_info["l"] for ep_info in self.ep_info_buffer]))
+        self.logger.record("time/fps", fps)
+        self.logger.record("time/time_elapsed", int(time_elapsed), exclude="tensorboard")
+        self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
+        if len(self.ep_success_buffer) > 0:
+            self.logger.record("rollout/success_rate", safe_mean(self.ep_success_buffer))
+        self.logger.dump(step=self.num_timesteps)
+
     def collect_samples(self, callback: BaseCallback) -> bool:
         """
         Returns:
@@ -100,26 +118,29 @@ class MaskableMCTSRL(BaseAlgorithm):
             to stop training
         """
         for _ in range(self.n_episodes):
-            obs = self.env_single.reset()[0]
-            done = False
+            obs = self.env.reset()
+            dones = [False]
             episode_obs_and_policies = []
             episode_total_reward = 0
 
-            while not done:
-                action_masks = get_action_masks(self.env_single)
-                action, policy_target = self.mcts_rl_policy.predict(
+            while not dones[0]:
+                actions, policy_targets = self.mcts_rl_policy.predict(
                     obs=obs,
-                    env_deepcopy=copy.deepcopy(self.env_single),
+                    env=self.env,
                     deterministic=False,
                 )
-                episode_obs_and_policies.append((obs, policy_target))
+                episode_obs_and_policies.append((obs[0], policy_targets[0]))
 
-                obs, reward, done, _, info = self.env_single.step(action)
-                episode_total_reward += reward
+                obs, rewards, dones, infos = self.env.step(actions)
+                episode_total_reward += rewards[0]
+
+                self.num_timesteps += 1
 
                 callback.update_locals(locals())
                 if not callback.on_step():
                     return False
+
+                self._update_info_buffer(infos, dones)
 
             for state, policy in episode_obs_and_policies:
                 self.buffer.append((state, policy, episode_total_reward))
@@ -220,7 +241,7 @@ class MaskableMCTSRL(BaseAlgorithm):
         else:
             action, _ = self.mcts_rl_policy.predict(
                 obs=observation,
-                env_deepcopy=copy.deepcopy(self.env_single),
+                env=self.env,
                 deterministic=deterministic,
             )
         return np.array([action]), None

@@ -6,6 +6,9 @@ import torch
 import torch.nn as nn
 from gymnasium.core import ObsType
 from sb3_contrib.common.maskable.utils import get_action_masks
+from stable_baselines3.common.vec_env import VecEnv, DummyVecEnv
+
+from hearts_ai.rl.env import HeartsPlayEnvironment
 
 
 class MCTSNode:
@@ -122,13 +125,16 @@ class MCTSRLPolicy:
     def predict(
             self,
             obs: ObsType,
-            env_deepcopy: gym.Env,
+            env: VecEnv,
             deterministic: bool,
     ):
         """
         Pick the best action according to current policy
         """
-        root = MCTSNode(obs, env_deepcopy)
+        assert isinstance(env, DummyVecEnv)
+        obs = obs[0]
+        env = copy.deepcopy(env.envs[0].env)
+        root = MCTSNode(obs, env)
         self._expansion(root)
 
         for _ in range(self.n_simulations):
@@ -163,7 +169,7 @@ class MCTSRLPolicy:
         else:
             action = self._np_random.choice(actions_list, p=policy_target)
 
-        return action, policy_target
+        return np.array([action]), np.array([policy_target])
 
     def get_network_policy(self, obs: ObsType, action_masks: np.ndarray) -> np.ndarray:
         obs_tensor = self.__obs_to_tensor(obs)
