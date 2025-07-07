@@ -4,7 +4,7 @@ import re
 import time
 import warnings
 from datetime import datetime
-from typing import TypeVar, Callable, Type
+from typing import Callable, Type
 
 import numpy as np
 import torch
@@ -28,16 +28,8 @@ MCTS_RL_N_EPISODES_CARD_PASS = 512  # 8x multiple of batch_size = 64
 MCTS_RL_BUFFER_SIZE_PLAY = 512  # between 2-3x updates
 MCTS_RL_BUFFER_SIZE_CARD_PASS = 1024  # 2x updates
 
-SupportedAlgorithm = TypeVar(
-    'SupportedAlgorithm',
-    MaskablePPO,
-    MaskableMCTSRL,
-)
-SupportedEnvironment = TypeVar(
-    'SupportedEnvironment',
-    HeartsPlayEnvironment,
-    HeartsCardsPassEnvironment,
-)
+SupportedAlgorithm = MaskablePPO | MaskableMCTSRL
+SupportedEnvironment = HeartsPlayEnvironment | HeartsCardsPassEnvironment
 
 
 def print_start_training_info(steps_per_stage: np.ndarray):
