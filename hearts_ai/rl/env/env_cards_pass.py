@@ -84,7 +84,7 @@ class HeartsCardsPassEnvironment(gym.Env):
     class State:
         _pass_direction: PassDirection
         _hands: list[np.ndarray]
-        _picked_cards: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int8))
+        _picked_cards: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.int16))
 
         @property
         def pass_direction(self) -> PassDirection:
@@ -176,14 +176,15 @@ class HeartsCardsPassEnvironment(gym.Env):
             random_state=int(self.np_random.integers(999999)),
             pass_direction=self.state.pass_direction
         )
-        hearts_round.override_hand = [h.copy() for h in self.state.hands]
+        for player_idx in range(PLAYER_COUNT):
+            hearts_round.override_hand(player_idx, self.state.hands[player_idx])
 
         if include_card_passing:
             hearts_round.pick_cards_to_pass(0, self.state.picked_cards)
 
             for opponent_player_idx, opponent_callback in enumerate(self.opponents_callbacks, 1):
                 opponent_hand = self.state.hands[opponent_player_idx]
-                opponent_picked_cards = np.array([])
+                opponent_picked_cards = np.array([], dtype=np.int16)
                 for _ in range(3):
                     # opponents card pass
                     obs = create_cards_pass_env_obs(
@@ -204,6 +205,8 @@ class HeartsCardsPassEnvironment(gym.Env):
             action_masks = create_play_env_action_masks_from_hearts_round(hearts_round)
             playing_callback = self.playing_callbacks[hearts_round.current_player_idx]
             action = playing_callback(obs, action_masks)
+            if type(action) == np.ndarray:
+                action = action.item()
             hearts_round.play_card(action)
 
             if hearts_round.is_current_trick_full:

@@ -27,7 +27,7 @@ class HeartsRound:
 
         0: Trick number
         1-52: Player 0's relation to each card
-            (-1: played before, 0: not in hand, 1: in hand, 2: player in this trick)
+            (-1: played before, 0: not in hand, 1: in hand, 2: played in this trick)
         53-104: Player 1's relation to each card
         105-156: Player 2's relation to each card
         157-208: Player 3's relation to each card
@@ -197,6 +197,15 @@ class HeartsRound:
         base_idx = STATE_IDX_HANDS_INFO_START[player_idx]
         hand_mask = self._np_state[base_idx:(base_idx + 52)]
         return np.where(hand_mask == 1)[0]
+
+    def override_hand(self, player_idx: int | np.int_, hand: np.ndarray) -> None:
+        """
+        Use with caution and only at the start of the game.
+        This is really exposed only for the card pass env.
+        """
+        base_idx = STATE_IDX_HANDS_INFO_START[player_idx]
+        self._np_state[base_idx:(base_idx + 52)] = 0
+        self._np_state[base_idx + hand] = 1
 
     def __can_perform_card_passing(self) -> bool:
         """

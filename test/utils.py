@@ -27,4 +27,4 @@ def cla(cards_str: list[str]) -> np.array:
     """
     Same as ``cl`` but converts to an array (useful when mocking core and envs)
     """
-    return np.array([card.idx for card in cl(cards_str)])
+    return np.array([card.idx for card in cl(cards_str)], dtype=np.int16)

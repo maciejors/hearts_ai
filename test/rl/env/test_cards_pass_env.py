@@ -19,7 +19,9 @@ def get_sample_env() -> tuple[HeartsCardsPassEnvironment, ObsType]:
 
 
 def empty_hands_except_player(player_hand: list[str]) -> list[np.ndarray]:
-    return [cla(player_hand), np.array([]), np.array([]), np.array([])]
+    hands = [np.array([], dtype=np.int16) for _ in range(4)]
+    hands[0] = cla(player_hand)
+    return hands
 
 
 def get_mock_params_for_hearts_round() -> dict:

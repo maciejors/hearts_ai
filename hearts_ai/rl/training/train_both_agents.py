@@ -185,12 +185,12 @@ def train_both_agents(
         for swap_no in range(1, n_card_pass_tunes + 1):
             print(f'-> Training playing agent ({swap_no}/{n_play_trainings})')
             play_env.card_passing_callbacks[0] = get_callback_from_agent(card_passing_agent)
-            playing_agent.learn(
-                total_timesteps=card_pass_tune_interval,
-                reset_num_timesteps=False,
-                callback=callbacks,
-                progress_bar=progress_bar,
-            )
+            # playing_agent.learn(
+            #     total_timesteps=card_pass_tune_interval,
+            #     reset_num_timesteps=False,
+            #     callback=callbacks,
+            #     progress_bar=progress_bar,
+            # )
             print(f'-> Switching to card passing agent ({swap_no}/{n_card_pass_tunes})')
             card_pass_env.playing_callbacks[0] = get_callback_from_agent(playing_agent)
             card_passing_agent.learn(
