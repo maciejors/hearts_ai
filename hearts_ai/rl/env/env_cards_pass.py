@@ -260,14 +260,23 @@ class HeartsCardsPassEnvironment(gym.Env):
         if len(self.state.picked_cards) < 3:
             return self._get_obs(), 0, False, False, {}
 
-        pts_with_passing = np.array([
-            self.__simulate_round(include_card_passing=True)
-            for _ in range(self.eval_count[0])
-        ])
-        pts_no_passing = np.array([
-            self.__simulate_round(include_card_passing=False)
-            for _ in range(self.eval_count[1])
-        ])
+        pts_with_passing = []
+        pts_no_passing = []
+
+        for _ in range(self.eval_count[0]):
+            try:
+                pts_with_passing.append(self.__simulate_round(include_card_passing=True))
+            except Exception as err:
+                warnings.warn(f'An error occurred while simulating a round with passing: {err}')
+
+        for _ in range(self.eval_count[1]):
+            try:
+                pts_no_passing.append(self.__simulate_round(include_card_passing=False))
+            except Exception as err:
+                warnings.warn(f'An error occurred while simulating a round without passing: {err}')
+
+        pts_with_passing = np.array(pts_with_passing)
+        pts_no_passing = np.array(pts_no_passing)
 
         if not self.suppress_deterministic_eval_warn:
             self.__handle_deterministic_eval_check(pts_with_passing, pts_no_passing)
