@@ -5,7 +5,7 @@ from hearts_ai.rl.training import train_both_agents
 
 reward_setting_mctsrl = 'sparse'
 
-for i in range(1, 5):
+for i in range(5):
     train_both_agents(
         agent_cls_play=MaskableMCTSRL,
         agent_cls_card_pass=MaskablePPO,
