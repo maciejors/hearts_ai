@@ -27,5 +27,5 @@ train_both_agents(
     eval_freq_episodes=50000,
     n_eval_episodes=10000,
     progress_bar=True,
-    #random_state=TBC,
+    random_state=2,
 )
