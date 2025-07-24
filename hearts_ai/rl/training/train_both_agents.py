@@ -3,7 +3,7 @@ from typing import Type
 
 import numpy as np
 from sb3_contrib.ppo_mask import MaskablePPO
-from stable_baselines3.common.callbacks import LogEveryNTimesteps, CallbackList
+from stable_baselines3.common.callbacks import LogEveryNTimesteps, CallbackList, CheckpointCallback
 from stable_baselines3.common.logger import configure as configure_sb3logger
 
 from hearts_ai.rl.env import HeartsPlayEnvironment, HeartsCardsPassEnvironment
@@ -15,8 +15,8 @@ from .common import (
     create_agent,
     create_eval_callback,
     EPISODE_LENGTH_PLAY,
-    PPO_N_STEPS_PLAY,
-    PPO_N_STEPS_CARD_PASS,
+    SHARED_N_STEPS_PLAY,
+    SHARED_N_STEPS_CARD_PASS,
 )
 from .opponents.callbacks import (
     get_callback_from_agent,
@@ -169,18 +169,24 @@ def train_both_agents(
         logger = configure_sb3logger(log_subpath, ['csv'])
         playing_agent.set_logger(logger)
 
-        callbacks = CallbackList([
-            LogEveryNTimesteps(1),
-            eval_random_callback,
-            eval_rule_based_callback,
-        ])
-
         # number of training timesteps for playing agent before card passing agent is tuned
-        card_pass_tune_interval = PPO_N_STEPS_PLAY * swap_period_multipl
+        card_pass_tune_interval = SHARED_N_STEPS_PLAY * swap_period_multipl
         n_card_pass_tunes = stage_play_timesteps // card_pass_tune_interval
         # in case card_pass_tune_interval is not a multiple of stage_play_timesteps
         extra_playing_timesteps_after = stage_play_timesteps - card_pass_tune_interval * n_card_pass_tunes
         n_play_trainings = n_card_pass_tunes + (extra_playing_timesteps_after > 0)
+
+        callbacks_play = CallbackList([
+            LogEveryNTimesteps(1),
+            eval_random_callback,
+            eval_rule_based_callback,
+        ])
+        callbacks_card_pass = CallbackList([
+            CheckpointCallback(
+                save_freq=SHARED_N_STEPS_CARD_PASS,
+                save_path=os.path.join(log_path, f'card_pass')
+            )
+        ])
 
         for swap_no in range(1, n_card_pass_tunes + 1):
             print(f'-> Training playing agent ({swap_no}/{n_play_trainings})')
@@ -188,14 +194,15 @@ def train_both_agents(
             playing_agent.learn(
                 total_timesteps=card_pass_tune_interval,
                 reset_num_timesteps=False,
-                callback=callbacks,
+                callback=callbacks_play,
                 progress_bar=progress_bar,
             )
             print(f'-> Switching to card passing agent ({swap_no}/{n_card_pass_tunes})')
             card_pass_env.playing_callbacks[0] = get_callback_from_agent(playing_agent)
             card_passing_agent.learn(
-                total_timesteps=PPO_N_STEPS_CARD_PASS,
+                total_timesteps=SHARED_N_STEPS_CARD_PASS,
                 reset_num_timesteps=False,
+                callback=callbacks_card_pass,
                 progress_bar=progress_bar,
             )
 
@@ -205,7 +212,7 @@ def train_both_agents(
             playing_agent.learn(
                 total_timesteps=extra_playing_timesteps_after,
                 reset_num_timesteps=False,
-                callback=callbacks,
+                callback=callbacks_play,
                 progress_bar=progress_bar,
             )
 

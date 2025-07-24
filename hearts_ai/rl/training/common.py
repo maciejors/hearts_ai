@@ -21,10 +21,10 @@ EPISODE_LENGTH_PLAY = 13
 EPISODE_LENGTH_CARD_PASS = 3
 STATS_WINDOW_SIZE_PLAY = 2000
 STATS_WINDOW_SIZE_CARD_PASS = 1000
-PPO_N_STEPS_PLAY = 2496  # 3x multiple of 832 = 64 * 13 (batch_size * episode_length)
-PPO_N_STEPS_CARD_PASS = 1536  # 8x multiple of 192 = 64 * 3 (batch_size * episode_length)
-MCTS_RL_N_EPISODES_PLAY = 192  # 3x multiple of batch_size = 64
-MCTS_RL_N_EPISODES_CARD_PASS = 512  # 8x multiple of batch_size = 64
+SHARED_RL_N_EPISODES_PLAY = 192  # 3x multiple of batch_size = 64
+SHARED_RL_N_EPISODES_CARD_PASS = 512  # 8x multiple of batch_size = 64
+SHARED_N_STEPS_PLAY = SHARED_RL_N_EPISODES_PLAY * EPISODE_LENGTH_PLAY
+SHARED_N_STEPS_CARD_PASS = SHARED_RL_N_EPISODES_CARD_PASS * EPISODE_LENGTH_CARD_PASS
 MCTS_RL_BUFFER_SIZE_PLAY = 512  # between 2-3x updates
 MCTS_RL_BUFFER_SIZE_CARD_PASS = 1024  # 2x updates
 
@@ -121,18 +121,19 @@ def _create_ppo_agent(
         seed: int,
 ) -> MaskablePPO:
     if isinstance(env, HeartsPlayEnvironment):
-        print(f'PPO playing agent will update every {PPO_N_STEPS_PLAY // EPISODE_LENGTH_PLAY} episodes')
+        print(f'PPO playing agent will update every {SHARED_N_STEPS_PLAY // EPISODE_LENGTH_PLAY} episodes')
         return MaskablePPO(
             'MlpPolicy', env,
-            n_steps=PPO_N_STEPS_PLAY,
+            n_steps=SHARED_N_STEPS_PLAY,
             stats_window_size=STATS_WINDOW_SIZE_PLAY,
             seed=seed,
         )
     if isinstance(env, HeartsCardsPassEnvironment):
-        print(f'PPO card passing agent will update every {PPO_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
+        print(
+            f'PPO card passing agent will update every {SHARED_N_STEPS_CARD_PASS // EPISODE_LENGTH_CARD_PASS} episodes')
         return MaskablePPO(
             'MlpPolicy', env,
-            n_steps=PPO_N_STEPS_CARD_PASS,
+            n_steps=SHARED_N_STEPS_CARD_PASS,
             stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
             seed=seed,
         )
@@ -144,20 +145,20 @@ def _create_mcts_rl_agent(
         seed: int,
 ) -> MaskableMCTSRL:
     if isinstance(env, HeartsPlayEnvironment):
-        print(f'MCTS-RL playing agent will update every {MCTS_RL_N_EPISODES_PLAY} episodes')
+        print(f'MCTS-RL playing agent will update every {SHARED_RL_N_EPISODES_PLAY} episodes')
         return MaskableMCTSRL(
             env,
-            n_episodes=MCTS_RL_N_EPISODES_PLAY,
+            n_episodes=SHARED_RL_N_EPISODES_PLAY,
             stats_window_size=STATS_WINDOW_SIZE_PLAY,
             buffer_size=MCTS_RL_BUFFER_SIZE_PLAY,
             max_tree_depth=None,
             seed=seed,
         )
     if isinstance(env, HeartsCardsPassEnvironment):
-        print(f'MCTS-RL card passing agent will update every {MCTS_RL_N_EPISODES_CARD_PASS} episodes')
+        print(f'MCTS-RL card passing agent will update every {SHARED_RL_N_EPISODES_CARD_PASS} episodes')
         return MaskableMCTSRL(
             env,
-            n_episodes=MCTS_RL_N_EPISODES_CARD_PASS,
+            n_episodes=SHARED_RL_N_EPISODES_CARD_PASS,
             stats_window_size=STATS_WINDOW_SIZE_CARD_PASS,
             buffer_size=MCTS_RL_BUFFER_SIZE_CARD_PASS,
             max_tree_depth=None,
