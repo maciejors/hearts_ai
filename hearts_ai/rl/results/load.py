@@ -48,7 +48,8 @@ def _load_training_logs_single_run(run_log_path: str) -> tuple[pd.DataFrame, lis
         raw_logs_df = pd.read_csv(
             os.path.join(run_log_path, stage_subdir, 'progress.csv')
         )
-        ep_length = int(raw_logs_df['rollout/ep_len_mean'].iloc[-1])
+        logs_with_ep_length = raw_logs_df[~raw_logs_df['rollout/ep_rew_mean'].isna()]
+        ep_length = int(logs_with_ep_length['rollout/ep_len_mean'].iloc[-1])
 
         # filter out entries with algo update info, and entries with eval info
         if 'time/iterations' in raw_logs_df.columns:
