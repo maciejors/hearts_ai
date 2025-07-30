@@ -8,6 +8,7 @@ from sb3_contrib import MaskablePPO
 
 from hearts_ai.engine import Card, PassDirection, Suit, HeartsRound
 from hearts_ai.engine.constants import PLAYER_COUNT, CARDS_TO_PASS_COUNT
+from hearts_ai.engine.round import STATE_IDX_HANDS_INFO_START, STATE_IDX_POINTS_COLLECTED
 from hearts_ai.engine.utils import get_winning_card_argmax, points_for_card
 from hearts_ai.rl.agents import MaskableMCTSRL
 from hearts_ai.rl.env import HeartsPlayEnvironment
@@ -56,9 +57,25 @@ class MCTSRLWrapper(AgentWrapper):
     def predict(self, obs: ObsType,
                 action_masks: np.ndarray,
                 are_hearts_broken: bool) -> ActType:
+        # this does the reverse of obs.py: create_play_env_obs_from_hearts_round
         hearts_round = HeartsRound(random_state=0)
         np_state = np.zeros(271, dtype=np.int16)
         np_state[:217] = np.copy(obs)
+
+        # account for the global player idx
+        # we want the current player to be at index 0 in the state
+        hands_idx = np.array([
+            np.arange(idx_start, idx_start + 52)
+            for idx_start in STATE_IDX_HANDS_INFO_START
+        ])
+        points_idx = np.array(STATE_IDX_POINTS_COLLECTED)
+
+        hands_idx_unshifted = np.roll(hands_idx, shift=self.player_idx, axis=0)
+        points_idx_unshifted = np.roll(points_idx, shift=self.player_idx)
+
+        np_state[hands_idx.flatten()] = obs[hands_idx_unshifted.flatten()]
+        np_state[points_idx] = obs[points_idx_unshifted]
+
         if are_hearts_broken:
             np_state[217] = 1
         # noinspection PyProtectedMember

@@ -69,7 +69,7 @@ def run_eval(name: str, players: list[BasePlayer], n_games: int, random_state: i
             game.next_round()
 
     results_df = pd.DataFrame(results)
-    save_dir = 'output/final_eval'
+    save_dir = 'output/final_eval/results'
     os.makedirs(save_dir, exist_ok=True)
     results_df.to_csv(f'output/final_eval/{name}.csv', index=False)
 
@@ -78,25 +78,25 @@ if __name__ == '__main__':
     N_GAMES = 1000
     run_eval(
         name='ppo_vs_random',
-        players=[get_ppo_player(0), RandomPlayer(1), RandomPlayer(2), RandomPlayer(3)],
+        players=[get_ppo_player(0), get_ppo_player(1), RandomPlayer(2), RandomPlayer(3)],
         n_games=N_GAMES,
         random_state=28,
     )
     run_eval(
         name='ppo_vs_rule_based',
-        players=[get_ppo_player(0), RuleBasedPlayer(), RuleBasedPlayer(), RuleBasedPlayer()],
+        players=[get_ppo_player(0), get_ppo_player(1), RuleBasedPlayer(), RuleBasedPlayer()],
         n_games=N_GAMES,
         random_state=28,
     )
     run_eval(
         name='mctsrl_vs_random',
-        players=[get_mctsrl_player(0, 0), RandomPlayer(1), RandomPlayer(2), RandomPlayer(3)],
+        players=[get_mctsrl_player(0, 0), get_mctsrl_player(1, 1), RandomPlayer(2), RandomPlayer(3)],
         n_games=N_GAMES,
         random_state=28,
     )
     run_eval(
         name='mctsrl_vs_rule_based',
-        players=[get_mctsrl_player(0, 0), RuleBasedPlayer(), RuleBasedPlayer(), RuleBasedPlayer()],
+        players=[get_mctsrl_player(0, 0), get_mctsrl_player(1, 1), RuleBasedPlayer(), RuleBasedPlayer()],
         n_games=N_GAMES,
         random_state=28,
     )
