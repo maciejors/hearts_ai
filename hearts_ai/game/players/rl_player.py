@@ -1,21 +1,77 @@
+from abc import ABC, abstractmethod
 from collections import Counter
 from dataclasses import dataclass, field
 
 import numpy as np
+from gymnasium.core import ObsType, ActType
+from sb3_contrib import MaskablePPO
 
-from hearts_ai.engine import Card, PassDirection, Suit
+from hearts_ai.engine import Card, PassDirection, Suit, HeartsRound
 from hearts_ai.engine.constants import PLAYER_COUNT, CARDS_TO_PASS_COUNT
 from hearts_ai.engine.utils import get_winning_card_argmax, points_for_card
+from hearts_ai.rl.agents import MaskableMCTSRL
+from hearts_ai.rl.env import HeartsPlayEnvironment
 from hearts_ai.rl.env.obs import (
     create_play_env_obs,
     create_cards_pass_env_obs,
     create_play_env_action_masks,
     create_cards_pass_env_action_masks,
 )
-from hearts_ai.rl.training.common import SupportedAlgorithm
+from hearts_ai.rl.training.common import update_self_play_clones
 from .base import BasePlayer
 from ..deck import Deck
-from ..utils import card_list_to_array, array_to_card_list
+from ..utils import card_list_to_array, array_to_card_list, get_valid_plays_objs
+
+
+class AgentWrapper(ABC):
+    @abstractmethod
+    def predict(self, obs: ObsType,
+                action_masks: np.ndarray,
+                are_hearts_broken: bool) -> ActType:
+        raise NotImplementedError()
+
+
+class PPOWrapper(AgentWrapper):
+    def __init__(self, agent: MaskablePPO):
+        self.agent = agent
+
+    def predict(self, obs: ObsType,
+                action_masks: np.ndarray,
+                are_hearts_broken: bool) -> ActType:
+        pred, _ = self.agent.predict(obs, action_masks=action_masks)
+        return pred.item()
+
+
+class MCTSRLWrapper(AgentWrapper):
+    def __init__(self, agent: MaskableMCTSRL, player_idx: int):
+        self.player_idx = player_idx
+        self.agent = agent
+        self.env = HeartsPlayEnvironment(
+            opponents_callbacks=[],
+            reward_setting='sparse'  # does not matter here
+        )
+        self.agent.set_env(self.env)
+        update_self_play_clones(self.env, self.agent)
+
+    def predict(self, obs: ObsType,
+                action_masks: np.ndarray,
+                are_hearts_broken: bool) -> ActType:
+        hearts_round = HeartsRound(random_state=0)
+        np_state = np.zeros(271, dtype=np.int16)
+        np_state[:217] = np.copy(obs)
+        if are_hearts_broken:
+            np_state[217] = 1
+        # noinspection PyProtectedMember
+        hearts_round._np_state = np_state
+
+        my_idx_in_trick = len(hearts_round.current_trick_unordered)
+        trick_starting_player_idx = (self.player_idx - my_idx_in_trick) % 4
+        # noinspection PyProtectedMember
+        hearts_round._np_state[218] = trick_starting_player_idx
+
+        self.env.round = hearts_round
+        pred, _ = self.agent.predict(np.array([obs]), action_masks=None, sb3_eval_mode=False)
+        return pred.item()
 
 
 def _opponents_voids_default_factory() -> dict[Suit, list[bool]]:
@@ -34,14 +90,14 @@ class RLPlayer(BasePlayer):
         cards_played_by_each: list[list[Card]] = field(default_factory=lambda: [[] for _ in range(PLAYER_COUNT)])
         points: list[int] = field(default_factory=lambda: [0] * PLAYER_COUNT)
         pass_direction: PassDirection = PassDirection.NO_PASSING
-        passed_cards: list[Card] = field(default_factory=list)
+        passed_cards_in_play: list[Card] = field(default_factory=list)
         my_idx_in_curr_trick: int | None = None
 
     def __init__(
             self,
-            playing_agent: SupportedAlgorithm,
-            card_passing_agent: SupportedAlgorithm,
-            simulation_count: int = 10,
+            playing_agent: AgentWrapper,
+            card_passing_agent: AgentWrapper,
+            simulation_count: int = 20,
             random_state: int | None = None,
     ):
         self.playing_agent = playing_agent
@@ -75,23 +131,48 @@ class RLPlayer(BasePlayer):
                 if player_idx != 0 and card_played.suit != leading_suit:
                     self.memory.opponents_voids[leading_suit][player_idx - 1] = True
 
+        valid_plays = get_valid_plays_objs(hand, leading_suit, are_hearts_broken, is_first_trick)
+        if len(valid_plays) == 1:
+            return valid_plays[0]
+
         votes = []
+        success_count = 0
+        failures_count = 0
         for _ in range(self.simulation_count):
-            obs = self._determinisation_state(hand, trick)
             act_masks = create_play_env_action_masks(
                 card_list_to_array(hand),
                 Suit.order(leading_suit),
                 are_hearts_broken,
                 is_first_trick,
             )
-            act = self.playing_agent.predict(obs, action_masks=act_masks)[0]
-            votes.append(act)
+            # skip malformed determinisations which cause problems
+            max_attempts = 20
+            for _ in range(max_attempts):
+                try:
+                    obs = self._determinisation_state(hand, trick)
+                    act = self.playing_agent.predict(
+                        obs,
+                        action_masks=act_masks,
+                        are_hearts_broken=are_hearts_broken,
+                    )
+                    votes.append(act)
+                    success_count += 1
+                    break
+                except RuntimeError:
+                    failures_count += 1
+
+        determinisation_success_rate = success_count / (success_count + failures_count) * 100
+        if determinisation_success_rate < 1e-10 or len(votes) == 0:
+            print(f'All determinisations were unsuccessful. Playing the first available card')
+            return valid_plays[0]
+        if determinisation_success_rate < 70:
+            print(f'Low determinisation success rate occurred ({determinisation_success_rate:.2f}%)')
 
         return Card(Counter(votes).most_common(1)[0][0])
 
     def select_cards_to_pass(self, hand: list[Card], direction: PassDirection) -> list[Card]:
         self.memory.pass_direction = direction
-        cards_to_pass = np.array([])
+        cards_to_pass = np.array([], dtype=np.int16)
         for _ in range(CARDS_TO_PASS_COUNT):
             obs = create_cards_pass_env_obs(
                 card_list_to_array(hand),
@@ -102,11 +183,15 @@ class RLPlayer(BasePlayer):
                 card_list_to_array(hand),
                 cards_to_pass,
             )
-            act = self.card_passing_agent.predict(obs, action_masks=act_masks)[0]
+            act = self.card_passing_agent.predict(
+                obs,
+                action_masks=act_masks,
+                are_hearts_broken=False,
+            )
             cards_to_pass = np.append(cards_to_pass, act)
 
         cards_to_pass_objs = array_to_card_list(cards_to_pass)
-        self.memory.passed_cards = cards_to_pass_objs.copy()
+        self.memory.passed_cards_in_play = cards_to_pass_objs.copy()
         return cards_to_pass_objs
 
     def post_trick_callback(self, trick: list[Card], is_trick_taken: bool) -> None:
@@ -118,29 +203,31 @@ class RLPlayer(BasePlayer):
         my_idx = indexes_of_players_in_trick[0]
         winner_idx_relative_to_me = (winner_idx - my_idx) % 4
         pts_in_trick = sum(points_for_card(c.idx) for c in trick)
-        self.memory.points[winner_idx_relative_to_me] = pts_in_trick
+        self.memory.points[winner_idx_relative_to_me] += pts_in_trick
 
         leading_suit = trick[0].suit
         for player_idx, card_played in zip(indexes_of_players_in_trick, trick):
             self.memory.cards_played_by_each[player_idx].append(card_played)
             if player_idx != 0 and card_played.suit != leading_suit:
                 self.memory.opponents_voids[leading_suit][player_idx - 1] = True
+            if card_played in self.memory.passed_cards_in_play:
+                self.memory.passed_cards_in_play.remove(card_played)
 
     def post_round_callback(self, score: int) -> None:
         self.memory = RLPlayer.Memory()
 
-    def _determinisation_state(self, hand: list[Card], trick: list[Card]) -> np.ndarray:
+    def _determinisation_state(self, my_hand: list[Card], trick: list[Card]) -> np.ndarray:
         """Form the current state using the known information as well as determinisation"""
         all_cards = set(Deck(random_state=int(self._np_random.integers(999999))).deal(52))
-        seen_cards = set(hand) | set(trick)
+        seen_cards = set(my_hand) | set(trick)
         for player_cards in self.memory.cards_played_by_each:
             seen_cards.update(player_cards)
-        seen_cards.update(self.memory.passed_cards)
+        seen_cards.update(self.memory.passed_cards_in_play)
 
         cards_unknown_owner = list(all_cards - seen_cards)
         self._np_random.shuffle(cards_unknown_owner)
 
-        hands = [hand] + [[] for _ in range(PLAYER_COUNT - 1)]
+        hands = [my_hand.copy()] + [[] for _ in range(PLAYER_COUNT - 1)]
         opponent_indices = [1, 2, 3]
 
         # assign passed cards
@@ -151,20 +238,35 @@ class RLPlayer(BasePlayer):
                 PassDirection.ACROSS: 2,
             }
             receiver_idx = pass_to_idx_map[self.memory.pass_direction]
-            hands[receiver_idx].extend(self.memory.passed_cards)
+            for card_in_trick in trick:
+                if card_in_trick in self.memory.passed_cards_in_play:
+                    self.memory.passed_cards_in_play.remove(card_in_trick)
+            hands[receiver_idx].extend(self.memory.passed_cards_in_play)
+
+        cards_needed_counts = [len(my_hand) - len(hand) for hand in hands]
+        # players before us should have 1 less card
+        for i in range(1, len(trick) + 1):
+            cards_needed_counts[-i] -= 1
 
         # assign remaining cards
         for card in cards_unknown_owner:
             possible_receivers = []
             for i, opponent_idx in enumerate(opponent_indices):
+                if cards_needed_counts[opponent_idx] == 0:
+                    continue
                 if not self.memory.opponents_voids[card.suit][i]:
                     possible_receivers.append(opponent_idx)
+
             if not possible_receivers:
-                # in case something goes wrong just give the card to anyone
-                # we do not want this to be too complex computationally
-                possible_receivers = opponent_indices
+                # fallback - give to anyone that still needs cards
+                possible_receivers = [i for i in opponent_indices if cards_needed_counts[i] > 0]
+
+            if not possible_receivers:
+                raise RuntimeError('Determinisation failed')
+
             assigned = self._np_random.choice(possible_receivers)
             hands[assigned].append(card)
+            cards_needed_counts[assigned] -= 1
 
         obs = create_play_env_obs(
             trick_no=self.memory.curr_trick_no,

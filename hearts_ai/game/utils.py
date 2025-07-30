@@ -5,7 +5,7 @@ from hearts_ai.engine.utils import get_valid_plays
 
 
 def card_list_to_array(card_list: list[Card]) -> np.ndarray:
-    return np.array([c.idx for c in card_list])
+    return np.array([c.idx for c in card_list], dtype=np.int16)
 
 
 def array_to_card_list(arr: np.ndarray) -> list[Card]:

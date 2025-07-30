@@ -18,7 +18,10 @@ def points_for_card(card_idx: int | np.int_) -> int:
 def get_winning_card_argmax(cards: np.ndarray, leading_suit: int) -> np.int32:
     cards_matching_lead_suits = cards[cards // 13 == leading_suit]
     winning_card = np.max(cards_matching_lead_suits)
-    return np.where(cards == winning_card)[0].item()
+    try:
+        return np.where(cards == winning_card)[0].item()
+    except ValueError:
+        raise RuntimeError("Invalid trick")
 
 
 def get_valid_plays(hand: np.ndarray,

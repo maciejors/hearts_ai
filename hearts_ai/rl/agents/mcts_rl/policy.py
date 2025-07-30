@@ -8,8 +8,6 @@ from gymnasium.core import ObsType
 from sb3_contrib.common.maskable.utils import get_action_masks
 from stable_baselines3.common.vec_env import VecEnv, DummyVecEnv
 
-from hearts_ai.rl.env import HeartsPlayEnvironment
-
 
 class MCTSNode:
     """
@@ -162,6 +160,10 @@ class MCTSRLPolicy:
             [root.children[act].visit_count if act in root.children else 0
              for act in actions_list]
         )
+        visit_counts_sum = np.sum(visit_counts)
+        if visit_counts_sum == 0:
+            raise RuntimeError('No visits to children nodes - '
+                               'the environment state or action masks are probably malformed')
         policy_target = visit_counts / np.sum(visit_counts)
 
         if deterministic:

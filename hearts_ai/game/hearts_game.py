@@ -32,6 +32,7 @@ class HeartsGame:
             rules=rules,
             random_state=random_state,
         )
+        self.round_no = 1
         self.scoreboard = [0 for _ in range(PLAYER_COUNT)]
 
     @property
@@ -75,9 +76,17 @@ class HeartsGame:
             self.round.pick_cards_to_pass(player_idx, card_list_to_array(selected_cards))
         self.round.perform_cards_passing()
 
-    def play_trick(self):
+    def play_trick(self) -> tuple[list[Card], list[int], int]:
+        """
+        Returns:
+            The finished trick (ordered), the order of players in the trick,
+            index of the player who won the trick
+        """
+        players_order: list[int] = []
+
         for _ in range(PLAYER_COUNT):
             current_player_idx = self.round.current_player_idx
+            players_order.append(int(current_player_idx))
             player = self.players[current_player_idx]
             card = player.play_card(
                 hand=self.hands[current_player_idx],
@@ -88,18 +97,20 @@ class HeartsGame:
             self.round.play_card(card.idx)
 
         trick, winner_idx = self.round.complete_trick(return_ordered=True)
+        trick_card_list = array_to_card_list(trick)
+
         for i, player in enumerate(self.players):
-            player.post_trick_callback(array_to_card_list(trick), i == winner_idx)
+            player.post_trick_callback(trick_card_list, i == winner_idx)
+        return trick_card_list, players_order, int(winner_idx)
 
     def play_round(self):
         self.pass_cards()
         for _ in range(CARDS_PER_PLAYER_COUNT):
             self.play_trick()
 
-        for player, score in zip(self.players, self.round_scores):
-            player.post_round_callback(score)
-
     def next_round(self):
-        for player_idx, player_score in enumerate(self.round_scores):
-            self.scoreboard[player_idx] += player_score
+        for player_idx, (player, score) in enumerate(zip(self.players, self.round_scores)):
+            self.scoreboard[player_idx] += score
+            player.post_round_callback(score)
         self.round = self.round.next()
+        self.round_no += 1

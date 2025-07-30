@@ -1,7 +1,7 @@
-import sys
-import time
 import io
 import pathlib
+import sys
+import time
 from typing import Union, Optional, Iterable, Any, Callable
 
 import gymnasium as gym
@@ -211,7 +211,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             episode_start: Optional[np.ndarray] = None,
             deterministic: bool = False,
             action_masks: Optional[np.ndarray] = None,
-            eval_mode: bool = True,
+            sb3_eval_mode: bool = True,
     ) -> tuple[np.ndarray, Optional[tuple[np.ndarray, ...]]]:
         """
         Get the policy action from an observation.
@@ -222,7 +222,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             episode_start: unused parameter
             deterministic: Whether or not to return deterministic actions.
             action_masks: Mask indicating allowed actions
-            eval_mode: If ``True``, only network prediction is used to decide
+            sb3_eval_mode: If ``True``, only network prediction is used to decide
                 an action. If ``False``, standard MCTS+RL prediction will be
                 made. Default is ``True``, because in SB3 framework it is not
                 possible to perform simulations inside EvalCallbacks
@@ -231,7 +231,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             the model's action and the next hidden state
             (the latter used in recurrent policies, here it is always None)
         """
-        if eval_mode:
+        if sb3_eval_mode:
             policy_probs = self.mcts_rl_policy.get_network_policy(observation, action_masks)
             if deterministic:
                 action = np.argmax(policy_probs)

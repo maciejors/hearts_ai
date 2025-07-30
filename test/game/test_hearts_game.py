@@ -95,6 +95,6 @@ class TestHeartsGame(unittest.TestCase):
             # arrange
             game = get_game_with_random_players()
             # act
-            game.play_round()
+            game.next_round()
             # assert
             self.assertEqual(4, len(mocked_callback.mock_calls))

@@ -267,6 +267,14 @@ class HeartsRound:
         """
         Complete the current trick and prepare for the next one
 
+        Args:
+            return_ordered: If True, the trick will be returned in the order
+                that the cards were played. If False, the trick will be
+                ordered according to the order of the player list. The
+                former is more natural and user-friendly, while the latter
+                is computationally cheaper and makes it easier to track
+                cards played by each particular player
+
         Returns:
             A tuple of two elements, the first one is the trick content, and
             the second is the index of a player who took the trick.
