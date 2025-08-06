@@ -13,7 +13,7 @@ from hearts_ai.engine.utils import get_winning_card_argmax, points_for_card
 from hearts_ai.rl.agents import MaskableMCTSRL
 from hearts_ai.rl.env import HeartsPlayEnvironment
 from hearts_ai.rl.env.obs import (
-    create_play_env_obs,
+    create_play_env_obs_full,
     create_cards_pass_env_obs,
     create_play_env_action_masks,
     create_cards_pass_env_action_masks,
@@ -285,7 +285,7 @@ class RLPlayer(BasePlayer):
             hands[assigned].append(card)
             cards_needed_counts[assigned] -= 1
 
-        obs = create_play_env_obs(
+        obs = create_play_env_obs_full(
             trick_no=self.memory.curr_trick_no,
             player_idx=0,
             trick_starting_player_idx=self._get_indexes_of_players_in_trick()[0],

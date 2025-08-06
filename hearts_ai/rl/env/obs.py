@@ -1,12 +1,12 @@
 import numpy as np
 from gymnasium.core import ObsType
 
-from hearts_ai.engine import HeartsRound, PassDirection
+from hearts_ai.engine import HeartsRound, PassDirection, Suit
 from hearts_ai.engine.round import STATE_IDX_HANDS_INFO_START, STATE_IDX_POINTS_COLLECTED
 from hearts_ai.engine.utils import get_valid_plays
 
 
-def create_play_env_obs(
+def create_play_env_obs_full(
         trick_no: int,
         player_idx: int,
         trick_starting_player_idx: int,
@@ -47,7 +47,7 @@ def create_play_env_obs(
     return state
 
 
-def create_play_env_obs_from_hearts_round(hearts_round: HeartsRound) -> ObsType:
+def create_play_env_obs_full_from_hearts_round(hearts_round: HeartsRound) -> ObsType:
     obs = hearts_round.get_numpy_state()[:217]
     current_player_idx = int(hearts_round.current_player_idx)
 
@@ -63,6 +63,77 @@ def create_play_env_obs_from_hearts_round(hearts_round: HeartsRound) -> ObsType:
 
     obs[hands_idx.flatten()] = obs[hands_idx_shifted.flatten()]
     obs[points_idx] = obs[points_idx_shifted]
+    return obs
+
+
+def create_play_env_obs_compact(
+        trick_no: int,
+        player_hand: np.ndarray,
+        current_trick_ordered: np.ndarray,
+        current_round_points_collected: np.ndarray,
+        played_cards: list[np.ndarray],
+        voids: dict[Suit, list[bool]]
+) -> np.ndarray:
+    obs = np.zeros(70, dtype=np.int8)
+    obs[0] = trick_no
+
+    # card status
+    card_status = np.zeros(52, dtype=np.int8)
+    card_status[player_hand] = 1
+    card_status[current_trick_ordered] = 2
+    for played_cards_by_someone in played_cards:
+        card_status[played_cards_by_someone] = -1
+    obs[1:53] = card_status
+
+    # voids
+    for suit_idx, suit in enumerate(Suit):
+        for i in range(3):
+            obs[53 + (4 * i) + suit_idx] = int(voids[suit][i])
+
+    # leading suit
+    if len(current_trick_ordered) > 0:
+        leading_suit = current_trick_ordered[0] // 13
+        obs[65 + leading_suit] = 1
+
+    # moon shot is impossible if more than 1 player has any pts
+    obs[69] = 0 if np.sum(current_round_points_collected > 0) > 1 else 1
+    return obs
+
+
+def create_play_env_obs_compact_from_hearts_round(hearts_round: HeartsRound) -> np.ndarray:
+    round_np_state = hearts_round.get_numpy_state()
+    obs = np.zeros(70, dtype=int)
+    obs[0] = round_np_state[0]
+
+    obs[1 + hearts_round.current_trick_unordered] = 2
+
+    current_player_idx = int(hearts_round.current_player_idx)
+    hands_idx = np.array([
+        np.arange(idx_start, idx_start + 52)
+        for idx_start in STATE_IDX_HANDS_INFO_START
+    ])
+    for player_idx, hand_info_idx in enumerate(hands_idx):
+        # played cards
+        hand_info = round_np_state[hand_info_idx]
+        obs[1 + np.where(hand_info == -1)[0]] = -1
+        if player_idx == current_player_idx:
+            # player hand
+            obs[1 + np.where(hand_info == 1)[0]] = 1
+        else:
+            # voids
+            for suit_idx in range(3):
+                suit_cards_indices = np.arange(suit_idx * 13, (suit_idx + 1) * 13)
+                if np.sum(hand_info[suit_cards_indices] == 1) == 0:
+                    # player_idx_relative: 1=left, 2=across, 3=right
+                    player_idx_relative = (player_idx - current_player_idx) % 4
+                    obs[53 + 4 * player_idx_relative + suit_idx] = 1
+
+    # leading suit
+    obs[65:69] = round_np_state[209:213]
+
+    # moon shot possibility - check if more than 1 player has >0 score
+    obs[69] = 0 if np.sum(hearts_round.scores > 0) > 1 else 1
+
     return obs
 
 
@@ -120,3 +191,9 @@ def create_cards_pass_env_action_masks(
     mask = np.full(52, False)
     mask[valid_cards] = True
     return mask
+
+
+play_env_observation_settings = {
+    'full': create_play_env_obs_full_from_hearts_round,
+    'compact': create_play_env_obs_compact_from_hearts_round,
+}

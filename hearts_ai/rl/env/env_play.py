@@ -9,7 +9,7 @@ from gymnasium.core import ObsType, ActType
 from hearts_ai.engine import HeartsRound, HeartsRules
 from hearts_ai.engine.utils import points_for_card
 from .obs import (
-    create_play_env_obs_from_hearts_round,
+    play_env_observation_settings,
     create_play_env_action_masks_from_hearts_round,
     create_cards_pass_env_obs,
     create_cards_pass_env_action_masks,
@@ -80,8 +80,8 @@ class HeartsPlayEnvironment(gym.Env):
     the index of a card to play. The cards are ordered in the following way:
     clubs, diamonds, spades, hearts, with ranks ordered from 2 to Ace.
 
-    Each observation is a vector of length 217, containing the
-    following information (by indices):
+    In 'full' observation setting, each observation is a vector of length 217,
+    containing the following information (by indices):
 
         0: Trick number
         1-52: Agent's relation to each card
@@ -97,6 +97,18 @@ class HeartsPlayEnvironment(gym.Env):
     information on cards that each player has. The algorithms need to take
     this into account and when evaluating, determinisation techniques need
     to be used.
+
+    In 'compact' observation setting, each observation is a vector of length 70,
+    containing the following information (by indices):
+
+        0: Trick number
+        1-52: Each card's status
+            (-1: played before, 0: not in agent's hand, 1: in agent's hand, 2: in current trick)
+        53-56: Voids of left opponent
+        57-60: Voids of across opponent
+        61-64: Voids of right opponent
+        65-68: One-hot vector specifying the leading suit in this trick
+        69: Is moon shot possible in this round (yes/no)
 
     There are three reward settings: sparse, dense, and binary. In the sparse
     reward setting, a reward is only given at the end of a round. This reward
@@ -122,6 +134,7 @@ class HeartsPlayEnvironment(gym.Env):
             returning an action. Alternatively it could also be a single object,
             in which case it will be shared for all opponents.
         reward_setting: The reward setting to use.
+        observation_setting: The observation setting to use.
         card_passing_callbacks: Callbacks responsible for picking the cards to
             pass before each round. If set to ``None``, card passing will be
             disabled during training. It is useful to set this callback when
@@ -134,9 +147,9 @@ class HeartsPlayEnvironment(gym.Env):
         'action_space',
         'observation_space',
         'reward_setting',
+        'observation_setting',
         'round',
     ]
-
     reward_systems = {
         'dense': _calculate_reward_dense,
         'sparse': _calculate_reward_sparse,
@@ -147,6 +160,7 @@ class HeartsPlayEnvironment(gym.Env):
             self,
             opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
             reward_setting: Literal['dense', 'sparse', 'binary'],
+            observation_setting: Literal['full', 'compact'] = 'full',
             card_passing_callbacks: ActionTakingCallbackParam[
                                         CardPassEnvObsType, CardPassEnvActType] | None = None,
     ):
@@ -159,6 +173,11 @@ class HeartsPlayEnvironment(gym.Env):
                              f'Accepted values: {HeartsPlayEnvironment.reward_systems.keys()}.')
         self.reward_setting = reward_setting
 
+        if observation_setting not in play_env_observation_settings:
+            raise ValueError(f'Invalid `observation_setting`: "{observation_setting}". '
+                             f'Accepted values: {play_env_observation_settings.keys()}.')
+        self.observation_setting = observation_setting
+
         if card_passing_callbacks is not None:
             self.card_passing_callbacks = handle_action_taking_callback_param(
                 card_passing_callbacks, 4)
@@ -166,13 +185,16 @@ class HeartsPlayEnvironment(gym.Env):
             self.card_passing_callbacks = None
 
         self.action_space = gym.spaces.Discrete(52)
-        self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(217,), dtype=np.int8)
+        if observation_setting == 'full':
+            self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(217,), dtype=np.int8)
+        else:
+            self.observation_space = gym.spaces.Box(low=-1, high=26, shape=(70,), dtype=np.int8)
 
         # properly set in reset()
         self.round: HeartsRound | None = None
 
     def _get_obs(self) -> ObsType:
-        return create_play_env_obs_from_hearts_round(self.round)
+        return play_env_observation_settings[self.observation_setting](self.round)
 
     def __simulate_next_opponent(self):
         opponent_callback = self.opponents_callbacks[self.round.current_player_idx - 1]

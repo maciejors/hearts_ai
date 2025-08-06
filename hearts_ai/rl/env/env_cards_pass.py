@@ -1,7 +1,7 @@
 import copy
 import warnings
 from dataclasses import dataclass, field
-from typing import TypeAlias, Any, SupportsFloat
+from typing import TypeAlias, Any, SupportsFloat, Literal
 
 import gymnasium as gym
 import numpy as np
@@ -12,7 +12,7 @@ from hearts_ai.engine.constants import PLAYER_COUNT
 from .obs import (
     create_cards_pass_env_obs,
     create_cards_pass_env_action_masks,
-    create_play_env_obs_from_hearts_round,
+    play_env_observation_settings,
     create_play_env_action_masks_from_hearts_round,
 )
 from .utils import (
@@ -60,6 +60,8 @@ class HeartsCardsPassEnvironment(gym.Env):
             If it is a single callback, it is shared for every player.
             A callback should be a function accepting a play environment
             state and an action mask, and returning a play environment action.
+        play_env_obs_settings: Observation settings for the play env which playing
+            callback should use
         eval_count: How many times to simulate the round for each variant
             (with and without card passing). It can be a two-element list,
             specifying evaluation count separately for each variant, or a
@@ -75,6 +77,7 @@ class HeartsCardsPassEnvironment(gym.Env):
         'action_space',
         'observation_space',
         'suppress_deterministic_eval_warn',
+        'play_env_obs_settings',
         'eval_count',
         'state',
         '__times_consecutive_eval_identical',
@@ -108,6 +111,7 @@ class HeartsCardsPassEnvironment(gym.Env):
             self,
             opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
             playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
+            play_env_obs_settings: list[Literal['full', 'compact']] | None = 'full',
             eval_count: int | list[int] = 10,
             supress_deterministic_eval_warn: bool = False,
     ):
@@ -115,6 +119,11 @@ class HeartsCardsPassEnvironment(gym.Env):
 
         self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
         self.playing_callbacks = handle_action_taking_callback_param(playing_callbacks, 4)
+
+        if play_env_obs_settings is None:
+            self.play_env_obs_settings = ['full'] * 4
+        else:
+            self.play_env_obs_settings = play_env_obs_settings
 
         if isinstance(eval_count, int):
             self.eval_count = [eval_count] * 2
@@ -139,6 +148,11 @@ class HeartsCardsPassEnvironment(gym.Env):
             picked_cards=self.state.picked_cards,
             pass_direction=self.state.pass_direction,
         )
+
+    def _make_play_env_obs(self, player_idx: int, hearts_round: HeartsRound) -> PlayEnvObsType:
+        obs_setting_for_player = self.play_env_obs_settings[player_idx]
+        make_play_env_obs = play_env_observation_settings[obs_setting_for_player]
+        return make_play_env_obs(hearts_round)
 
     def reset(
             self,
@@ -201,9 +215,10 @@ class HeartsCardsPassEnvironment(gym.Env):
 
         while not hearts_round.is_finished:
             # simulate gameplay
-            obs = create_play_env_obs_from_hearts_round(hearts_round)
+            current_player_idx = int(hearts_round.current_player_idx)
+            obs = self._make_play_env_obs(current_player_idx, hearts_round)
             action_masks = create_play_env_action_masks_from_hearts_round(hearts_round)
-            playing_callback = self.playing_callbacks[hearts_round.current_player_idx]
+            playing_callback = self.playing_callbacks[current_player_idx]
             action = playing_callback(obs, action_masks)
             if type(action) == np.ndarray:
                 action = action.item()
