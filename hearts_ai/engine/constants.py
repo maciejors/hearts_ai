@@ -30,6 +30,7 @@ class Suit(Enum):
 
     @staticmethod
     def order(suit: Union['Suit', None]) -> int | None:
+        """Club->0, Diamond->1, Spade->2, Heart->3"""
         if suit is None:
             return None
         return list(Suit).index(suit)

@@ -1,7 +1,7 @@
 import copy
 import warnings
 from dataclasses import dataclass, field
-from typing import TypeAlias, Any, SupportsFloat, Literal
+from typing import TypeAlias, Any, SupportsFloat
 
 import gymnasium as gym
 import numpy as np
@@ -14,11 +14,9 @@ from .obs import (
     create_cards_pass_env_action_masks,
     play_env_observation_settings,
     create_play_env_action_masks_from_hearts_round,
+    PlayEnvObsSettingType,
 )
-from .utils import (
-    ActionTakingCallbackParam,
-    handle_action_taking_callback_param,
-)
+from .utils import ActionTakingCallbackParam, ensure_sequence
 
 PlayEnvObsType: TypeAlias = ObsType
 PlayEnvActType: TypeAlias = ActType
@@ -111,19 +109,18 @@ class HeartsCardsPassEnvironment(gym.Env):
             self,
             opponents_callbacks: ActionTakingCallbackParam[ObsType, ActType],
             playing_callbacks: ActionTakingCallbackParam[PlayEnvObsType, PlayEnvActType],
-            play_env_obs_settings: list[Literal['full', 'compact']] | None = 'full',
+            play_env_obs_settings: PlayEnvObsSettingType | list[PlayEnvObsSettingType] = 'full',
             eval_count: int | list[int] = 10,
             supress_deterministic_eval_warn: bool = False,
     ):
         super().__init__()
 
-        self.opponents_callbacks = handle_action_taking_callback_param(opponents_callbacks, 3)
-        self.playing_callbacks = handle_action_taking_callback_param(playing_callbacks, 4)
+        self.opponents_callbacks = ensure_sequence(opponents_callbacks, 3)
+        self.playing_callbacks = ensure_sequence(playing_callbacks, 4)
 
         if play_env_obs_settings is None:
-            self.play_env_obs_settings = ['full'] * 4
-        else:
-            self.play_env_obs_settings = play_env_obs_settings
+            play_env_obs_settings = 'full'
+        self.play_env_obs_settings = ensure_sequence(play_env_obs_settings, 4)
 
         if isinstance(eval_count, int):
             self.eval_count = [eval_count] * 2

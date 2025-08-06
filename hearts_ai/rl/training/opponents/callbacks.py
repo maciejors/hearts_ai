@@ -24,7 +24,15 @@ def get_random_action_taking_callback(random_state: int) -> ActionTakingCallback
     return callback
 
 
-def rule_based_play_callback(obs: ObsType, _: np.ndarray) -> ActType:
+def rule_based_play_callback(obs: ObsType, action_masks: np.ndarray) -> ActType:
+    if obs.shape == (217,):
+        return rule_based_play_callback_obs_full(obs, action_masks)
+    if obs.shape == (70,):
+        return rule_based_play_callback_obs_compact(obs, action_masks)
+    raise ValueError(f'Unsupported {obs.shape = }')
+
+
+def rule_based_play_callback_obs_full(obs: ObsType, _: np.ndarray) -> ActType:
     trick_number = int(obs[0])
     is_first_trick = trick_number == 0
 
@@ -65,6 +73,37 @@ def rule_based_play_callback(obs: ObsType, _: np.ndarray) -> ActType:
             )
             if not has_suit:
                 opponents_voids[suit][opponent_idx] = True
+
+    card_to_play = play_card_rule_based(
+        hand=hand,
+        current_trick=current_trick,
+        are_hearts_broken=are_hearts_broken,
+        is_first_trick=is_first_trick,
+        opponents_voids=opponents_voids,
+        remaining_cards_opponents=remaining_cards_opponents,
+    )
+    return card_to_play.idx
+
+
+def rule_based_play_callback_obs_compact(obs: ObsType, _: np.ndarray) -> ActType:
+    trick_number = int(obs[0])
+    is_first_trick = trick_number == 0
+
+    # agent's hand
+    hand = [Card(i) for i in np.where(obs[1:53] == 1)[0]]
+
+    # current trick & remaining cards in play
+    current_trick = [Card(i) for i in np.where(obs[1:53] == 2)[0]]
+    remaining_cards_opponents = [Card(i) for i in np.where(obs[1:53] == 0)[0]]
+
+    # if a heart was played means the hearts are broken
+    are_hearts_broken = np.sum(obs[40:53] == -1) > 0
+
+    # void info for each opponent
+    opponents_voids = {suit: [False, False, False] for suit in Suit}
+    for suit in Suit:
+        suit_void_obs_indices = np.array([53, 57, 61]) + Suit.order(suit)
+        opponents_voids[suit] = list(obs[suit_void_obs_indices] == 1)  # type: ignore
 
     card_to_play = play_card_rule_based(
         hand=hand,

@@ -11,8 +11,8 @@ from test.utils import c, cla
 
 def get_sample_env() -> tuple[HeartsCardsPassEnvironment, ObsType]:
     env = HeartsCardsPassEnvironment(
-        opponents_callbacks=MagicMock(),
-        playing_callbacks=MagicMock(),
+        opponents_callbacks=[MagicMock(return_value=0) for _ in range(3)],
+        playing_callbacks=[MagicMock(return_value=0) for _ in range(4)],
     )
     obs_reset, _ = env.reset(seed=28)
     return env, obs_reset

@@ -112,7 +112,7 @@ def train_playing_agent(
                 for _ in range(3)
             ],
             card_passing_callbacks=card_passing_callbacks['random'],
-            reward_setting='sparse',
+            **{**env_kwargs, 'reward_setting': 'sparse'},
         ),
         eval_log_path=os.path.join(log_path, 'eval_random'),
         eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,
@@ -123,7 +123,7 @@ def train_playing_agent(
         HeartsPlayEnvironment(
             opponents_callbacks=[rule_based_play_callback] * 3,
             card_passing_callbacks=card_passing_callbacks['rule_based'],
-            reward_setting='sparse',
+            **{**env_kwargs, 'reward_setting': 'sparse'},
         ),
         eval_log_path=os.path.join(log_path, 'eval_rule_based'),
         eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,

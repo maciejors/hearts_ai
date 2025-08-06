@@ -1,3 +1,5 @@
+from typing import Literal
+
 import numpy as np
 from gymnasium.core import ObsType
 
@@ -197,3 +199,4 @@ play_env_observation_settings = {
     'full': create_play_env_obs_full_from_hearts_round,
     'compact': create_play_env_obs_compact_from_hearts_round,
 }
+PlayEnvObsSettingType = Literal['full', 'compact']

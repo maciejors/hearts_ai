@@ -97,6 +97,7 @@ def train_card_passing_agent(
                 for _ in range(3)
             ],
             playing_callbacks=playing_callback,
+            **env_kwargs
         ),
         eval_log_path=os.path.join(log_path, 'eval_random'),
         eval_freq=eval_freq_episodes * EPISODE_LENGTH_CARD_PASS,
@@ -107,6 +108,7 @@ def train_card_passing_agent(
         HeartsCardsPassEnvironment(
             opponents_callbacks=[rule_based_card_pass_callback] * 3,
             playing_callbacks=playing_callback,
+            **env_kwargs
         ),
         eval_log_path=os.path.join(log_path, 'eval_rule_based'),
         eval_freq=eval_freq_episodes * EPISODE_LENGTH_CARD_PASS,

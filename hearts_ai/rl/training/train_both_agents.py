@@ -129,7 +129,7 @@ def train_both_agents(
                 *[get_random_action_taking_callback(random_state=get_seed())
                   for _ in range(3)],
             ],
-            reward_setting='sparse',
+            **{**play_env_kwargs, 'reward_setting': 'sparse'},
         ),
         eval_log_path=os.path.join(log_path, 'eval_random'),
         eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,
@@ -143,7 +143,7 @@ def train_both_agents(
                 get_callback_from_agent(card_passing_agent),
                 *[rule_based_card_pass_callback] * 3,
             ],
-            reward_setting='sparse',
+            **{**play_env_kwargs, 'reward_setting': 'sparse'},
         ),
         eval_log_path=os.path.join(log_path, 'eval_rule_based'),
         eval_freq=eval_freq_episodes * EPISODE_LENGTH_PLAY,
