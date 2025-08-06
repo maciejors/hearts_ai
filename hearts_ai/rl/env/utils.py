@@ -1,4 +1,4 @@
-from typing import TypeVar, Callable, Sequence
+from typing import TypeVar, Callable
 
 import numpy as np
 
@@ -8,7 +8,7 @@ ActionTakingCallback = Callable[[_ObsTypeGeneric, np.ndarray], _ActTypeGeneric]
 ActionTakingCallbackParam = ActionTakingCallback | list[ActionTakingCallback]
 
 
-def ensure_sequence[T](p: T, sequence_length: int) -> Sequence[T]:
-    if isinstance(p, Sequence):
+def ensure_list[T](p: T, list_len: int) -> list[T]:
+    if isinstance(p, list):
         return p
-    return [p] * sequence_length
+    return [p] * list_len

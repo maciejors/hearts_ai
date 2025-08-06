@@ -16,7 +16,7 @@ from .obs import (
     create_play_env_action_masks_from_hearts_round,
     PlayEnvObsSettingType,
 )
-from .utils import ActionTakingCallbackParam, ensure_sequence
+from .utils import ActionTakingCallbackParam, ensure_list
 
 PlayEnvObsType: TypeAlias = ObsType
 PlayEnvActType: TypeAlias = ActType
@@ -115,12 +115,12 @@ class HeartsCardsPassEnvironment(gym.Env):
     ):
         super().__init__()
 
-        self.opponents_callbacks = ensure_sequence(opponents_callbacks, 3)
-        self.playing_callbacks = ensure_sequence(playing_callbacks, 4)
+        self.opponents_callbacks = ensure_list(opponents_callbacks, 3)
+        self.playing_callbacks = ensure_list(playing_callbacks, 4)
 
         if play_env_obs_settings is None:
             play_env_obs_settings = 'full'
-        self.play_env_obs_settings = ensure_sequence(play_env_obs_settings, 4)
+        self.play_env_obs_settings = ensure_list(play_env_obs_settings, 4)
 
         if isinstance(eval_count, int):
             self.eval_count = [eval_count] * 2

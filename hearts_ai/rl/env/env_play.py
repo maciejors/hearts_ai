@@ -14,7 +14,7 @@ from .obs import (
     create_cards_pass_env_obs,
     create_cards_pass_env_action_masks, PlayEnvObsSettingType,
 )
-from .utils import ActionTakingCallbackParam, ensure_sequence
+from .utils import ActionTakingCallbackParam, ensure_list
 
 CardPassEnvObsType: TypeAlias = ObsType
 CardPassEnvActType: TypeAlias = ActType
@@ -163,7 +163,7 @@ class HeartsPlayEnvironment(gym.Env):
     ):
         super().__init__()
 
-        self.opponents_callbacks = ensure_sequence(opponents_callbacks, 3)
+        self.opponents_callbacks = ensure_list(opponents_callbacks, 3)
 
         if reward_setting not in HeartsPlayEnvironment.reward_systems:
             raise ValueError(f'Invalid `reward_setting`: "{reward_setting}". '
@@ -176,7 +176,7 @@ class HeartsPlayEnvironment(gym.Env):
         self.observation_setting = observation_setting
 
         if card_passing_callbacks is not None:
-            self.card_passing_callbacks = ensure_sequence(
+            self.card_passing_callbacks = ensure_list(
                 card_passing_callbacks, 4)
         else:
             self.card_passing_callbacks = None
