@@ -275,7 +275,6 @@ class RLPlayer(BasePlayer):
             current_round_points_collected=np.array(self.memory.points),
         )
 
-        hearts_round = HeartsRound(random_state=0)
         np_state = np.zeros(271, dtype=np.int16)
         np_state[:217] = np.copy(obs)
 
@@ -285,6 +284,7 @@ class RLPlayer(BasePlayer):
         trick_starting_player_idx = -self.memory.my_idx_in_curr_trick % 4
         np_state[218] = trick_starting_player_idx
 
+        hearts_round = HeartsRound(random_state=0)
         # noinspection PyProtectedMember
         hearts_round._np_state = np_state
         return hearts_round
