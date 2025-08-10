@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 from gymnasium.core import ObsType, ActType
@@ -8,7 +9,6 @@ from sb3_contrib import MaskablePPO
 
 from hearts_ai.engine import Card, PassDirection, Suit, HeartsRound
 from hearts_ai.engine.constants import PLAYER_COUNT, CARDS_TO_PASS_COUNT
-from hearts_ai.engine.round import STATE_IDX_HANDS_INFO_START, STATE_IDX_POINTS_COLLECTED
 from hearts_ai.engine.utils import get_winning_card_argmax, points_for_card
 from hearts_ai.rl.agents import MaskableMCTSRL
 from hearts_ai.rl.env import HeartsPlayEnvironment
@@ -17,6 +17,7 @@ from hearts_ai.rl.env.obs import (
     create_cards_pass_env_obs,
     create_play_env_action_masks,
     create_cards_pass_env_action_masks,
+    play_env_observation_settings,
 )
 from hearts_ai.rl.training.common import update_self_play_clones
 from .base import BasePlayer
@@ -26,9 +27,12 @@ from ..utils import card_list_to_array, array_to_card_list, get_valid_plays_objs
 
 class AgentWrapper(ABC):
     @abstractmethod
-    def predict(self, obs: ObsType,
-                action_masks: np.ndarray,
-                are_hearts_broken: bool) -> ActType:
+    def predict(
+            self,
+            obs: ObsType,
+            action_masks: np.ndarray,
+            round_state: HeartsRound | None = None,
+    ) -> ActType:
         raise NotImplementedError()
 
 
@@ -36,16 +40,18 @@ class PPOWrapper(AgentWrapper):
     def __init__(self, agent: MaskablePPO):
         self.agent = agent
 
-    def predict(self, obs: ObsType,
-                action_masks: np.ndarray,
-                are_hearts_broken: bool) -> ActType:
+    def predict(
+            self,
+            obs: ObsType,
+            action_masks: np.ndarray,
+            round_state: HeartsRound | None = None,
+    ) -> ActType:
         pred, _ = self.agent.predict(obs, action_masks=action_masks)
         return pred.item()
 
 
 class MCTSRLWrapper(AgentWrapper):
-    def __init__(self, agent: MaskableMCTSRL, player_idx: int):
-        self.player_idx = player_idx
+    def __init__(self, agent: MaskableMCTSRL):
         self.agent = agent
         self.env = HeartsPlayEnvironment(
             opponents_callbacks=[],
@@ -54,39 +60,14 @@ class MCTSRLWrapper(AgentWrapper):
         self.agent.set_env(self.env)
         update_self_play_clones(self.env, self.agent)
 
-    def predict(self, obs: ObsType,
-                action_masks: np.ndarray,
-                are_hearts_broken: bool) -> ActType:
-        # this does the reverse of obs.py: create_play_env_obs_from_hearts_round
-        hearts_round = HeartsRound(random_state=0)
-        np_state = np.zeros(271, dtype=np.int16)
-        np_state[:217] = np.copy(obs)
-
-        # account for the global player idx
-        # we want the current player to be at index 0 in the state
-        hands_idx = np.array([
-            np.arange(idx_start, idx_start + 52)
-            for idx_start in STATE_IDX_HANDS_INFO_START
-        ])
-        points_idx = np.array(STATE_IDX_POINTS_COLLECTED)
-
-        hands_idx_unshifted = np.roll(hands_idx, shift=self.player_idx, axis=0)
-        points_idx_unshifted = np.roll(points_idx, shift=self.player_idx)
-
-        np_state[hands_idx.flatten()] = obs[hands_idx_unshifted.flatten()]
-        np_state[points_idx] = obs[points_idx_unshifted]
-
-        if are_hearts_broken:
-            np_state[217] = 1
-        # noinspection PyProtectedMember
-        hearts_round._np_state = np_state
-
-        my_idx_in_trick = len(hearts_round.current_trick_unordered)
-        trick_starting_player_idx = (self.player_idx - my_idx_in_trick) % 4
-        # noinspection PyProtectedMember
-        hearts_round._np_state[218] = trick_starting_player_idx
-
-        self.env.round = hearts_round
+    def predict(
+            self,
+            obs: ObsType,
+            action_masks: np.ndarray,
+            round_state: HeartsRound | None = None,
+    ) -> ActType:
+        assert round_state is not None
+        self.env.round = round_state
         pred, _ = self.agent.predict(np.array([obs]), action_masks=None, sb3_eval_mode=False)
         return pred.item()
 
@@ -114,11 +95,13 @@ class RLPlayer(BasePlayer):
             self,
             playing_agent: AgentWrapper,
             card_passing_agent: AgentWrapper,
+            play_env_obs_setting: Literal['full', 'compact'],
             simulation_count: int = 20,
             random_state: int | None = None,
     ):
         self.playing_agent = playing_agent
         self.card_passing_agent = card_passing_agent
+        self.create_obs = play_env_observation_settings[play_env_obs_setting]
         self.simulation_count = simulation_count
         self.memory = RLPlayer.Memory()
         self._np_random = np.random.default_rng(random_state)
@@ -166,11 +149,11 @@ class RLPlayer(BasePlayer):
             max_attempts = 20
             for _ in range(max_attempts):
                 try:
-                    obs = self._determinisation_state(hand, trick)
+                    determinisation_round = self._determinisation_round(hand, trick, are_hearts_broken)
                     act = self.playing_agent.predict(
-                        obs,
+                        obs=self.create_obs(determinisation_round),
                         action_masks=act_masks,
-                        are_hearts_broken=are_hearts_broken,
+                        round_state=determinisation_round,
                     )
                     votes.append(act)
                     success_count += 1
@@ -200,11 +183,7 @@ class RLPlayer(BasePlayer):
                 card_list_to_array(hand),
                 cards_to_pass,
             )
-            act = self.card_passing_agent.predict(
-                obs,
-                action_masks=act_masks,
-                are_hearts_broken=False,
-            )
+            act = self.card_passing_agent.predict(obs, act_masks)
             cards_to_pass = np.append(cards_to_pass, act)
 
         cards_to_pass_objs = array_to_card_list(cards_to_pass)
@@ -233,8 +212,8 @@ class RLPlayer(BasePlayer):
     def post_round_callback(self, score: int) -> None:
         self.memory = RLPlayer.Memory()
 
-    def _determinisation_state(self, my_hand: list[Card], trick: list[Card]) -> np.ndarray:
-        """Form the current state using the known information as well as determinisation"""
+    def _determinisation_round(self, my_hand: list[Card], trick: list[Card], are_hearts_broken: bool) -> HeartsRound:
+        """Create a HeartsRound object based on the known information"""
         all_cards = set(Deck(random_state=int(self._np_random.integers(999999))).deal(52))
         seen_cards = set(my_hand) | set(trick)
         for player_cards in self.memory.cards_played_by_each:
@@ -244,6 +223,7 @@ class RLPlayer(BasePlayer):
         cards_unknown_owner = list(all_cards - seen_cards)
         self._np_random.shuffle(cards_unknown_owner)
 
+        # the player can just always assume he is at index 0
         hands = [my_hand.copy()] + [[] for _ in range(PLAYER_COUNT - 1)]
         opponent_indices = [1, 2, 3]
 
@@ -294,4 +274,17 @@ class RLPlayer(BasePlayer):
             played_cards=[card_list_to_array(cl) for cl in self.memory.cards_played_by_each],
             current_round_points_collected=np.array(self.memory.points),
         )
-        return obs
+
+        hearts_round = HeartsRound(random_state=0)
+        np_state = np.zeros(271, dtype=np.int16)
+        np_state[:217] = np.copy(obs)
+
+        if are_hearts_broken:
+            np_state[217] = 1
+
+        trick_starting_player_idx = -self.memory.my_idx_in_curr_trick % 4
+        np_state[218] = trick_starting_player_idx
+
+        # noinspection PyProtectedMember
+        hearts_round._np_state = np_state
+        return hearts_round
