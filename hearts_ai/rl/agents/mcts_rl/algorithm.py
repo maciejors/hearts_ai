@@ -45,6 +45,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             buffer_size: int = 512,
             batch_size: int = 64,
             max_tree_depth: int | None = None,
+            n_simulations: int | None = None,
             learning_rate: float | Callable[[float], float] = 3e-4,
             seed: int | None = None,
             **kwargs,
@@ -65,6 +66,7 @@ class MaskableMCTSRL(BaseAlgorithm):
         self.buffer = []
         self.batch_size = batch_size
         self.max_tree_depth = max_tree_depth
+        self.n_simulations = n_simulations
         self._np_random = np.random.default_rng(seed)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -87,6 +89,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             network=self.network,
             n_actions=n_actions,
             max_tree_depth=self.max_tree_depth,
+            n_simulations=self.n_simulations,
             seed=self.seed,
             device=self.device,
         )
@@ -257,6 +260,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             'buffer_size': self.buffer_size,
             'batch_size': self.batch_size,
             'max_tree_depth': self.max_tree_depth,
+            'n_simulations': self.n_simulations,
             'learning_rate': self.learning_rate,
             'buffer': self.buffer,
             'network_state_dict': self.network.state_dict(),
@@ -282,6 +286,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             buffer_size=data['buffer_size'],
             batch_size=data['batch_size'],
             max_tree_depth=data['max_tree_depth'],
+            n_simulations=data['n_simulations'],
             learning_rate=data['learning_rate'],
             **kwargs,
         )

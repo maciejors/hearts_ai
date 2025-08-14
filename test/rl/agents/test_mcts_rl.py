@@ -19,6 +19,8 @@ class TestMaskableMCTSRL(unittest.TestCase):
             env=sample_env,
             n_episodes=123,
             buffer_size=456,
+            n_simulations=11,
+            max_tree_depth=101,
             batch_size=32,
             learning_rate=0.1,
             seed=0,
@@ -44,6 +46,8 @@ class TestMaskableMCTSRL(unittest.TestCase):
         self.assertEqual(456, sut.buffer_size)
         self.assertEqual(32, sut.batch_size)
         self.assertEqual(0.1, sut.learning_rate)
+        self.assertEqual(11, sut.n_simulations)
+        self.assertEqual(101, sut.max_tree_depth)
         self.assertEqual(agent.device, sut.device)
 
         self.assertEqual(1, len(sut.buffer))
