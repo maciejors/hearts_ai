@@ -45,7 +45,7 @@ class MaskableMCTSRL(BaseAlgorithm):
             buffer_size: int = 512,
             batch_size: int = 64,
             max_tree_depth: int | None = None,
-            n_simulations: int | None = None,
+            n_simulations: int = 50,
             learning_rate: float | Callable[[float], float] = 3e-4,
             seed: int | None = None,
             **kwargs,
