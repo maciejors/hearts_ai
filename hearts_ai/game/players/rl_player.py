@@ -9,6 +9,10 @@ from sb3_contrib import MaskablePPO
 
 from hearts_ai.engine import Card, PassDirection, Suit, HeartsRound
 from hearts_ai.engine.constants import PLAYER_COUNT, CARDS_TO_PASS_COUNT
+from hearts_ai.engine.round import (
+    STATE_IDX_TRICK_STARTING_PLAYER,
+    STATE_IDX_ARE_HEARTS_BROKEN,
+)
 from hearts_ai.engine.utils import get_winning_card_argmax, points_for_card
 from hearts_ai.rl.agents import MaskableMCTSRL
 from hearts_ai.rl.env import HeartsPlayEnvironment
@@ -279,12 +283,13 @@ class RLPlayer(BasePlayer):
         np_state[:217] = np.copy(obs)
 
         if are_hearts_broken:
-            np_state[217] = 1
+            np_state[STATE_IDX_ARE_HEARTS_BROKEN] = 1
 
         trick_starting_player_idx = -self.memory.my_idx_in_curr_trick % 4
-        np_state[218] = trick_starting_player_idx
+        np_state[STATE_IDX_TRICK_STARTING_PLAYER] = trick_starting_player_idx
 
         hearts_round = HeartsRound(random_state=0)
+        hearts_round.are_cards_passed = True
         # noinspection PyProtectedMember
         hearts_round._np_state = np_state
         return hearts_round
