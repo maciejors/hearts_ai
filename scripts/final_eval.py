@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 
 import pandas as pd
 from sb3_contrib import MaskablePPO
@@ -19,30 +20,54 @@ def ppo(subpath: str) -> PPOWrapper:
     return PPOWrapper(agent)
 
 
-def mctsrl(subpath: str, player_idx: int) -> MCTSRLWrapper:
+def mctsrl(subpath: str) -> MCTSRLWrapper:
     path = os.path.join('output/logs/final_training', subpath)
     env = HeartsPlayEnvironment(
         opponents_callbacks=[],
         reward_setting='sparse',
     )  # env does not matter here, the wrapper will override it
     agent = MaskableMCTSRL.load(path, env=env)
-    return MCTSRLWrapper(agent, player_idx)
+    return MCTSRLWrapper(agent)
 
 
-def get_mctsrl_player(player_idx: int, random_state: int) -> RLPlayer:
-    return RLPlayer(
-        playing_agent=mctsrl('mctsrl_play_ppo_pass/run_1/eval_rule_based/best_model', player_idx),
-        card_passing_agent=ppo('mctsrl_play_ppo_pass/run_1/card_pass/rl_model_222720_steps'),
-        random_state=random_state,
-    )
+def get_mctsrl_player(
+        obs_setting_: Literal['full', 'compact'],
+        random_state: int
+) -> RLPlayer:
+    if obs_setting_ == 'full':
+        return RLPlayer(
+            playing_agent=mctsrl('mctsrl_full/run_1/eval_rule_based/best_model'),
+            card_passing_agent=ppo('mctsrl_full/run_1/card_pass/rl_model_222720_steps'),
+            play_env_obs_setting=obs_setting_,
+            random_state=random_state,
+        )
+    else:
+        return RLPlayer(
+            playing_agent=mctsrl('mctsrl_compact/run_1/eval_rule_based/best_model'),
+            card_passing_agent=ppo('mctsrl_compact/run_1/card_pass/rl_model_Y_steps'),
+            play_env_obs_setting=obs_setting_,
+            random_state=random_state,
+        )
 
 
-def get_ppo_player(random_state: int) -> RLPlayer:
-    return RLPlayer(
-        playing_agent=ppo('ppo_both/run_1/eval_rule_based/best_model'),
-        card_passing_agent=ppo('ppo_both/run_1/card_pass/rl_model_87552_steps'),
-        random_state=random_state,
-    )
+def get_ppo_player(
+        obs_setting_: Literal['full', 'compact'],
+        random_state: int
+) -> RLPlayer:
+    if obs_setting_ == 'full':
+        return RLPlayer(
+            playing_agent=ppo('ppo_full/run_1/eval_rule_based/best_model'),
+            card_passing_agent=ppo('ppo_full/run_1/card_pass/rl_model_87552_steps'),
+            play_env_obs_setting=obs_setting_,
+            random_state=random_state,
+        )
+    else:
+        return RLPlayer(
+            playing_agent=ppo('ppo_compact/run_1/eval_rule_based/best_model'),
+            card_passing_agent=ppo('ppo_compact/run_1/card_pass/rl_model_110592_steps'),
+            play_env_obs_setting=obs_setting_,
+            random_state=random_state,
+        )
 
 
 def run_eval(name: str, players: list[BasePlayer], n_games: int, random_state: int):
@@ -76,33 +101,30 @@ def run_eval(name: str, players: list[BasePlayer], n_games: int, random_state: i
 
 if __name__ == '__main__':
     N_GAMES = 1000
-    run_eval(
-        name='ppo_vs_random',
-        players=[get_ppo_player(0), get_ppo_player(1), RandomPlayer(2), RandomPlayer(3)],
-        n_games=N_GAMES,
-        random_state=28,
-    )
-    run_eval(
-        name='ppo_vs_rule_based',
-        players=[get_ppo_player(0), get_ppo_player(1), RuleBasedPlayer(), RuleBasedPlayer()],
-        n_games=N_GAMES,
-        random_state=28,
-    )
-    run_eval(
-        name='mctsrl_vs_random',
-        players=[get_mctsrl_player(0, 0), get_mctsrl_player(1, 1), RandomPlayer(2), RandomPlayer(3)],
-        n_games=N_GAMES,
-        random_state=28,
-    )
-    run_eval(
-        name='mctsrl_vs_rule_based',
-        players=[get_mctsrl_player(0, 0), get_mctsrl_player(1, 1), RuleBasedPlayer(), RuleBasedPlayer()],
-        n_games=N_GAMES,
-        random_state=28,
-    )
-    run_eval(
-        name='tournament',
-        players=[get_ppo_player(8), get_mctsrl_player(1, 26), RuleBasedPlayer(), RandomPlayer(4)],
-        n_games=N_GAMES,
-        random_state=24,
-    )
+    for obs_setting in ['full', 'compact']:
+        ppo0 = get_ppo_player(obs_setting, random_state=0)  #type: ignore
+        run_eval(
+            name=f'ppo_{obs_setting}_vs_random',
+            players=[ppo0, RandomPlayer(1), RandomPlayer(2), RandomPlayer(3)],
+            n_games=N_GAMES,
+            random_state=28,
+        )
+        run_eval(
+            name=f'ppo_{obs_setting}_vs_rule_based',
+            players=[ppo0, RuleBasedPlayer(), RuleBasedPlayer(), RuleBasedPlayer()],
+            n_games=N_GAMES,
+            random_state=28,
+        )
+        mctsrl0 = get_mctsrl_player(obs_setting, random_state=0)  #type: ignore
+        run_eval(
+            name=f'mctsrl_{obs_setting}_vs_random',
+            players=[mctsrl0, RandomPlayer(1), RandomPlayer(2), RandomPlayer(3)],
+            n_games=N_GAMES,
+            random_state=28,
+        )
+        run_eval(
+            name=f'mctsrl_{obs_setting}_vs_rule_based',
+            players=[mctsrl0, RuleBasedPlayer(), RuleBasedPlayer(), RuleBasedPlayer()],
+            n_games=N_GAMES,
+            random_state=28,
+        )
