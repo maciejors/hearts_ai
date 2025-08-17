@@ -44,7 +44,7 @@ def get_mctsrl_player(
     else:
         return RLPlayer(
             playing_agent=mctsrl('mctsrl_compact/run_1/eval_rule_based/best_model'),
-            card_passing_agent=ppo('mctsrl_compact/run_1/card_pass/rl_model_Y_steps'),
+            card_passing_agent=ppo('mctsrl_compact/run_1/card_pass/rl_model_150528_steps'),
             play_env_obs_setting=obs_setting_,
             random_state=random_state,
         )
@@ -71,6 +71,7 @@ def get_ppo_player(
 
 
 def run_eval(name: str, players: list[BasePlayer], n_games: int, random_state: int):
+    print(f'Now running: {name}')
     results: list[dict] = []
     for game_no in tqdm(range(1, n_games + 1)):
         game = HeartsGame(
@@ -96,35 +97,53 @@ def run_eval(name: str, players: list[BasePlayer], n_games: int, random_state: i
     results_df = pd.DataFrame(results)
     save_dir = 'output/final_eval/results'
     os.makedirs(save_dir, exist_ok=True)
-    results_df.to_csv(f'output/final_eval/{name}.csv', index=False)
+    results_df.to_csv(os.path.join(save_dir, f'{name}.csv'), index=False)
 
 
 if __name__ == '__main__':
     N_GAMES = 1000
     for obs_setting in ['full', 'compact']:
-        ppo0 = get_ppo_player(obs_setting, random_state=0)  #type: ignore
         run_eval(
             name=f'ppo_{obs_setting}_vs_random',
-            players=[ppo0, RandomPlayer(1), RandomPlayer(2), RandomPlayer(3)],
+            players=[
+                get_ppo_player(obs_setting, random_state=0),  #type: ignore
+                RandomPlayer(1), 
+                RandomPlayer(2), 
+                RandomPlayer(3),
+            ],
             n_games=N_GAMES,
             random_state=28,
         )
         run_eval(
             name=f'ppo_{obs_setting}_vs_rule_based',
-            players=[ppo0, RuleBasedPlayer(), RuleBasedPlayer(), RuleBasedPlayer()],
+            players=[
+                get_ppo_player(obs_setting, random_state=0),  #type: ignore
+                RuleBasedPlayer(), 
+                RuleBasedPlayer(), 
+                RuleBasedPlayer(),
+            ],
             n_games=N_GAMES,
             random_state=28,
         )
-        mctsrl0 = get_mctsrl_player(obs_setting, random_state=0)  #type: ignore
         run_eval(
             name=f'mctsrl_{obs_setting}_vs_random',
-            players=[mctsrl0, RandomPlayer(1), RandomPlayer(2), RandomPlayer(3)],
+            players=[
+                get_mctsrl_player(obs_setting, random_state=0),  #type: ignore
+                RandomPlayer(1), 
+                RandomPlayer(2), 
+                RandomPlayer(3)
+            ],
             n_games=N_GAMES,
             random_state=28,
         )
         run_eval(
             name=f'mctsrl_{obs_setting}_vs_rule_based',
-            players=[mctsrl0, RuleBasedPlayer(), RuleBasedPlayer(), RuleBasedPlayer()],
+            players=[
+                get_mctsrl_player(obs_setting, random_state=0),  #type: ignore
+                RuleBasedPlayer(), 
+                RuleBasedPlayer(), 
+                RuleBasedPlayer()
+            ],
             n_games=N_GAMES,
             random_state=28,
         )
