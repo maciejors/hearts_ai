@@ -20,14 +20,15 @@ def ppo(subpath: str) -> PPOWrapper:
     return PPOWrapper(agent)
 
 
-def mctsrl(subpath: str) -> MCTSRLWrapper:
+def mctsrl(subpath: str, obs_setting_: Literal['full', 'compact']) -> MCTSRLWrapper:
     path = os.path.join('output/logs/final_training', subpath)
     env = HeartsPlayEnvironment(
         opponents_callbacks=[],
         reward_setting='sparse',
+        observation_setting=obs_setting_,
     )  # env does not matter here, the wrapper will override it
     agent = MaskableMCTSRL.load(path, env=env)
-    return MCTSRLWrapper(agent)
+    return MCTSRLWrapper(agent, obs_setting_)
 
 
 def get_mctsrl_player(
@@ -36,14 +37,14 @@ def get_mctsrl_player(
 ) -> RLPlayer:
     if obs_setting_ == 'full':
         return RLPlayer(
-            playing_agent=mctsrl('mctsrl_full/run_1/eval_rule_based/best_model'),
+            playing_agent=mctsrl('mctsrl_full/run_1/eval_rule_based/best_model', obs_setting_),
             card_passing_agent=ppo('mctsrl_full/run_1/card_pass/rl_model_222720_steps'),
             play_env_obs_setting=obs_setting_,
             random_state=random_state,
         )
     else:
         return RLPlayer(
-            playing_agent=mctsrl('mctsrl_compact/run_1/eval_rule_based/best_model'),
+            playing_agent=mctsrl('mctsrl_compact/run_1/eval_rule_based/best_model', obs_setting_),
             card_passing_agent=ppo('mctsrl_compact/run_1/card_pass/rl_model_150528_steps'),
             play_env_obs_setting=obs_setting_,
             random_state=random_state,
@@ -107,8 +108,8 @@ if __name__ == '__main__':
             name=f'ppo_{obs_setting}_vs_random',
             players=[
                 get_ppo_player(obs_setting, random_state=0),  #type: ignore
-                RandomPlayer(1), 
-                RandomPlayer(2), 
+                RandomPlayer(1),
+                RandomPlayer(2),
                 RandomPlayer(3),
             ],
             n_games=N_GAMES,
@@ -118,8 +119,8 @@ if __name__ == '__main__':
             name=f'ppo_{obs_setting}_vs_rule_based',
             players=[
                 get_ppo_player(obs_setting, random_state=0),  #type: ignore
-                RuleBasedPlayer(), 
-                RuleBasedPlayer(), 
+                RuleBasedPlayer(),
+                RuleBasedPlayer(),
                 RuleBasedPlayer(),
             ],
             n_games=N_GAMES,

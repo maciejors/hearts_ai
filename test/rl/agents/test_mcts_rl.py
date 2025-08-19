@@ -10,7 +10,7 @@ from hearts_ai.rl.env import HeartsPlayEnvironment
 
 
 class TestMaskableMCTSRL(unittest.TestCase):
-    def test_load_and_save(self):
+    def test_load_and_save_full(self):
         sample_env = HeartsPlayEnvironment(
             reward_setting='sparse',
             opponents_callbacks=[],
@@ -65,3 +65,21 @@ class TestMaskableMCTSRL(unittest.TestCase):
         loaded_policy_pred, loaded_value_pred = sut.network(sample_obs_tensor)
         self.assertListEqual(original_policy_pred.tolist(), loaded_policy_pred.tolist())
         self.assertEqual(original_value_pred.item(), loaded_value_pred.item())
+
+    def test_load_and_save_compact(self):
+        sample_env = HeartsPlayEnvironment(
+            reward_setting='sparse',
+            opponents_callbacks=[],
+            observation_setting='compact',
+        )
+        agent = MaskableMCTSRL(
+            env=sample_env,
+        )
+        # act - assert no error
+        tmpfile = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+        try:
+            agent.save(tmpfile.name)
+            MaskableMCTSRL.load(tmpfile.name, env=sample_env)
+        finally:
+            tmpfile.close()
+            os.remove(tmpfile.name)

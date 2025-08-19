@@ -55,11 +55,12 @@ class PPOWrapper(AgentWrapper):
 
 
 class MCTSRLWrapper(AgentWrapper):
-    def __init__(self, agent: MaskableMCTSRL):
+    def __init__(self, agent: MaskableMCTSRL, obs_setting: Literal['full', 'compact']):
         self.agent = agent
         self.env = HeartsPlayEnvironment(
             opponents_callbacks=[],
-            reward_setting='sparse'  # does not matter here
+            reward_setting='sparse',  # does not matter here
+            observation_setting=obs_setting,
         )
         self.agent.set_env(self.env)
         update_self_play_clones(self.env, self.agent)
